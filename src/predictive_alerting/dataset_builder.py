@@ -2,104 +2,64 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Iterable
 
 import numpy as np
 import pandas as pd
 
 
-def _resolve_path(path: str | Path, data_dir: Path) -> Path:
-    candidate = Path(path)
-    if candidate.is_absolute():
-        return candidate
-    if candidate.exists():
-        return candidate
-    return data_dir / candidate
+def load_incident_windows(labels_path: Path) -> dict[str, list[tuple[pd.Timestamp, pd.Timestamp]]]:
+    """Load incident time windows from NAB's combined_windows.json format."""
+    raw = json.loads(labels_path.read_text())
 
+    result = {}
+    for series_id, intervals in raw.items():
+        windows = [(pd.Timestamp(start), pd.Timestamp(end)) for start, end in intervals]
+        result[series_id] = windows
 
-def _series_key(series_path: Path, data_dir: Path) -> str:
-    try:
-        return series_path.resolve().relative_to(data_dir.resolve()).as_posix()
-    except ValueError:
-        return series_path.as_posix()
-
-
-def _load_windows(
-    labels_path: Path,
-) -> dict[str, list[tuple[pd.Timestamp, pd.Timestamp]]]:
-    raw_windows = json.loads(labels_path.read_text())
-    windows: dict[str, list[tuple[pd.Timestamp, pd.Timestamp]]] = {}
-    for key, values in raw_windows.items():
-        parsed = [
-            (pd.Timestamp(start), pd.Timestamp(end))
-            for start, end in values
-        ]
-        windows[key] = parsed
-    return windows
-
-
-def _label_series(
-    df: pd.DataFrame,
-    windows: list[tuple[pd.Timestamp, pd.Timestamp]],
-) -> pd.DataFrame:
-    labeled = df.copy()
-    labeled["is_incident"] = 0
-    labeled["incident_window_id"] = -1
-
-    for window_id, (start, end) in enumerate(windows):
-        in_window = (labeled["timestamp"] >= start) & (labeled["timestamp"] <= end)
-        labeled.loc[in_window, "is_incident"] = 1
-        labeled.loc[in_window, "incident_window_id"] = window_id
-
-    labeled["is_incident"] = labeled["is_incident"].astype("int8")
-    labeled["incident_window_id"] = labeled["incident_window_id"].astype("int16")
-    return labeled
+    return result
 
 
 def build_labeled_dataset(
-    series_files: Iterable[str | Path],
-    labels_path: str | Path,
-    data_dir: str | Path = "data",
-    strict_labels: bool = True,
+    series_paths: list[Path],
+    labels_path: Path,
 ) -> pd.DataFrame:
-    """Build one long-form DataFrame from multiple metric CSV files.
-
-    The output is grouped by `series_id` and contains:
-    `timestamp`, `value`, `is_incident`, and `incident_window_id`.
     """
-    data_dir_path = Path(data_dir)
-    labels_path_obj = Path(labels_path)
-    windows_by_series = _load_windows(labels_path_obj)
+    Load multiple CSV files and label each row with incident info.
 
-    parts: list[pd.DataFrame] = []
-    for series_file in series_files:
-        csv_path = _resolve_path(series_file, data_dir_path)
-        key = _series_key(csv_path, data_dir_path)
-        if strict_labels and key not in windows_by_series:
-            msg = (
-                f"No incident windows found for series key '{key}'. "
-                f"Check labels file: {labels_path_obj}"
-            )
-            raise KeyError(msg)
-        windows = windows_by_series.get(key, [])
+    Returns a DataFrame with columns:\n
+    - series_id: identifier derived from filename
+    - timestamp, value: the raw metric data
+    - is_incident: 1 if this timestamp falls within an incident window
+    """
+    windows_by_series = load_incident_windows(labels_path)
 
-        part = pd.read_csv(csv_path)
-        part["timestamp"] = pd.to_datetime(part["timestamp"])
-        part["value"] = pd.to_numeric(part["value"], errors="coerce")
-        part["series_id"] = key
-        part["file_name"] = csv_path.name
-        part = _label_series(part, windows)
+    parts = []
+    for csv_path in series_paths:
+        series_id = f"{csv_path.parent.name}/{csv_path.name}"
 
-        parts.append(part)
+        if series_id not in windows_by_series:
+            raise KeyError(f"No incident windows for '{series_id}' in {labels_path}")
 
-    dataset = pd.concat(parts, ignore_index=True)
+        windows = windows_by_series[series_id]
+
+        df = pd.read_csv(csv_path)
+        df["timestamp"] = pd.to_datetime(df["timestamp"])
+        df["value"] = pd.to_numeric(df["value"])
+        df["series_id"] = series_id
+
+        df["is_incident"] = 0
+        for start, end in windows:
+            mask = (df["timestamp"] >= start) & (df["timestamp"] <= end)
+            df.loc[mask, "is_incident"] = 1
+
+        parts.append(df)
+
+    dataset: pd.DataFrame = pd.concat(parts, ignore_index=True)
     dataset = dataset.sort_values(["series_id", "timestamp"]).reset_index(drop=True)
-    dataset["step"] = dataset.groupby("series_id").cumcount()
     return dataset
 
 
 def summarize_series(dataset: pd.DataFrame) -> pd.DataFrame:
-    """Return per-series sanity metrics for quick EDA checks."""
     summary = (
         dataset.groupby("series_id", as_index=False)
         .agg(
@@ -107,16 +67,12 @@ def summarize_series(dataset: pd.DataFrame) -> pd.DataFrame:
             first_timestamp=("timestamp", "min"),
             last_timestamp=("timestamp", "max"),
             incident_points=("is_incident", "sum"),
-            incident_windows=("incident_window_id", lambda x: x[x >= 0].nunique()),
             min_value=("value", "min"),
             max_value=("value", "max"),
-            missing_values=("value", lambda x: int(x.isna().sum())),
         )
         .sort_values("series_id")
         .reset_index(drop=True)
     )
-    summary["incident_points"] = summary["incident_points"].astype("int64")
-    summary["incident_windows"] = summary["incident_windows"].astype("int64")
     return summary
 
 
@@ -124,206 +80,131 @@ def make_incident_windows(
     dataset: pd.DataFrame,
     window_size: int,
     horizon: int,
-    feature_columns: tuple[str, ...] = ("value",),
-    label_column: str = "is_incident",
-    series_column: str = "series_id",
-    timestamp_column: str = "timestamp",
     dropna: bool = True,
 ) -> tuple[np.ndarray, np.ndarray, pd.DataFrame]:
-    """Build sliding-window samples for incident classification.
-
-    For each series and each start index ``s``:
-    - ``X[s]`` uses steps ``[s, s + window_size)``
-    - ``y[s]`` is 1 if any incident appears in ``[s + window_size, s + window_size + horizon)``
     """
-    if window_size <= 0:
-        raise ValueError(f"window_size must be > 0, got {window_size}")
-    if horizon <= 0:
-        raise ValueError(f"horizon must be > 0, got {horizon}")
-    if not feature_columns:
-        raise ValueError("feature_columns cannot be empty")
+    Build sliding-window samples for incident classification.
 
-    required_columns = {series_column, timestamp_column, label_column, *feature_columns}
-    missing = required_columns.difference(dataset.columns)
-    if missing:
-        missing_str = ", ".join(sorted(missing))
-        raise KeyError(f"Dataset is missing required columns: {missing_str}")
+    For each position in the series:
+    - X uses the previous `window_size` timesteps
+    - y is 1 if any incident occurs in the next `horizon` timesteps
 
-    ordered = dataset.sort_values([series_column, timestamp_column]).reset_index(drop=True)
+    Returns:
+        X: array of shape (n_samples, window_size, 1) with metric values
+        y: array of shape (n_samples,) with binary labels
+        meta: DataFrame with window timestamps for debugging
+    """
+    x_samples = []
+    y_samples = []
+    metadata = []
 
-    x_samples: list[np.ndarray] = []
-    y_samples: list[int] = []
-    metadata: list[dict[str, object]] = []
+    for series_id, series_df in dataset.groupby("series_id", sort=False):
+        series_df = series_df.sort_values("timestamp").reset_index(drop=True)
 
-    for series_id, series_df in ordered.groupby(series_column, sort=False):
-        values = series_df.loc[:, list(feature_columns)].to_numpy(dtype=float)
-        labels = pd.to_numeric(series_df[label_column], errors="coerce").to_numpy()
-        timestamps = pd.to_datetime(series_df[timestamp_column]).to_numpy()
+        values = series_df["value"].to_numpy(dtype=float)
+        labels = series_df["is_incident"].to_numpy()
+        timestamps = series_df["timestamp"].to_numpy()
 
-        max_start = len(series_df) - window_size - horizon + 1
-        if max_start <= 0:
+        # We need window_size + horizon points to create one sample
+        n_samples = len(series_df) - window_size - horizon + 1
+        if n_samples <= 0:
             continue
 
-        for start in range(max_start):
-            history_end = start + window_size
-            horizon_end = history_end + horizon
-
-            x_window = values[start:history_end]
-            y_window = labels[history_end:horizon_end]
+        for i in range(n_samples):
+            x_window = values[i : i + window_size]
+            y_window = labels[i + window_size : i + window_size + horizon]
 
             if dropna and (np.isnan(x_window).any() or np.isnan(y_window).any()):
                 continue
 
-            y_value = int((y_window > 0).any())
-            x_samples.append(x_window)
-            y_samples.append(y_value)
-            metadata.append(
-                {
-                    "series_id": series_id,
-                    "window_start": timestamps[start],
-                    "window_end": timestamps[history_end - 1],
-                    "horizon_start": timestamps[history_end],
-                    "horizon_end": timestamps[horizon_end - 1],
-                    "window_size": window_size,
-                    "horizon": horizon,
-                }
-            )
+            x_samples.append(x_window.reshape(-1, 1))  # Shape: (window_size, 1)
+            y_samples.append(int(y_window.any()))
+            metadata.append({
+                "series_id": series_id,
+                "window_start": timestamps[i],
+                "window_end": timestamps[i + window_size - 1],
+                "horizon_start": timestamps[i + window_size],
+                "horizon_end": timestamps[i + window_size + horizon - 1],
+            })
 
-    n_features = len(feature_columns)
     if x_samples:
-        x_array = np.stack(x_samples)
+        X = np.stack(x_samples)
     else:
-        x_array = np.empty((0, window_size, n_features), dtype=float)
+        X = np.empty((0, window_size, 1), dtype=float)
 
-    y_array = np.array(y_samples, dtype=np.int8)
-    metadata_df = pd.DataFrame(metadata)
-    return x_array, y_array, metadata_df
-
-
-def _window_feature_columns(feature_columns: tuple[str, ...]) -> list[str]:
-    columns: list[str] = []
-    for feature_name in feature_columns:
-        columns.extend(
-            [
-                f"{feature_name}_mean",
-                f"{feature_name}_std",
-                f"{feature_name}_min",
-                f"{feature_name}_max",
-                f"{feature_name}_last",
-                f"{feature_name}_first",
-                f"{feature_name}_diff_last_first",
-                f"{feature_name}_slope",
-                f"{feature_name}_median",
-                f"{feature_name}_q25",
-                f"{feature_name}_q75",
-            ]
-        )
-    return columns
+    y = np.array(y_samples, dtype=np.int8)
+    meta = pd.DataFrame(metadata)
+    return X, y, meta
 
 
-def build_window_features(
-    windows_x: np.ndarray,
-    feature_columns: tuple[str, ...] = ("value",),
-) -> pd.DataFrame:
-    """Compute tabular features from history windows only.
-
-    This function intentionally uses only ``windows_x`` (the historical part), so it
-    does not leak future information into training features.
+def build_window_features(windows: np.ndarray) -> pd.DataFrame:
     """
-    if windows_x.ndim != 3:
-        raise ValueError(f"windows_x must be 3D (n_samples, window_size, n_features), got {windows_x.ndim}D")
+    Compute statistical features from each window.
 
-    n_samples, window_size, n_features = windows_x.shape
-    if n_features != len(feature_columns):
-        msg = (
-            f"Number of feature columns ({len(feature_columns)}) must match "
-            f"windows_x.shape[2] ({n_features})."
-        )
-        raise ValueError(msg)
+    Takes windows of shape (n_samples, window_size, 1) and returns a DataFrame
+    with one row per window containing summary statistics.
 
-    output_columns = _window_feature_columns(feature_columns)
+    These features capture the behavior of the metric during the lookback period
+    without leaking future information.
+    """
+    # Squeeze out the last dimension since we only have one feature (value)
+    # Shape becomes: (n_samples, window_size)
+    w = windows.squeeze(axis=2)
+
+    n_samples, window_size = w.shape
     if n_samples == 0:
-        return pd.DataFrame(columns=output_columns)
+        return pd.DataFrame()
 
-    means = windows_x.mean(axis=1)
-    stds = windows_x.std(axis=1, ddof=0)
-    mins = windows_x.min(axis=1)
-    maxs = windows_x.max(axis=1)
-    lasts = windows_x[:, -1, :]
-    firsts = windows_x[:, 0, :]
-    diffs = lasts - firsts
-    medians = np.median(windows_x, axis=1)
-    q25 = np.quantile(windows_x, q=0.25, axis=1)
-    q75 = np.quantile(windows_x, q=0.75, axis=1)
+    # Basic statistics
+    features = pd.DataFrame({
+        "value_mean": w.mean(axis=1),
+        "value_std": w.std(axis=1, ddof=0),
+        "value_min": w.min(axis=1),
+        "value_max": w.max(axis=1),
+        "value_last": w[:, -1],
+        "value_first": w[:, 0],
+        "value_diff_last_first": w[:, -1] - w[:, 0],
+        "value_median": np.median(w, axis=1),
+        "value_q25": np.quantile(w, 0.25, axis=1),
+        "value_q75": np.quantile(w, 0.75, axis=1),
+    })
 
-    time_idx = np.arange(window_size, dtype=float)
-    centered_idx = time_idx - time_idx.mean()
-    denom = float(np.dot(centered_idx, centered_idx))
-    if denom == 0.0:
-        slopes = np.zeros_like(means)
+    # Slope: linear regression coefficient over the window
+    # Using simple formula: slope = sum((t - t_mean) * (x - x_mean)) / sum((t - t_mean)^2)
+    t = np.arange(window_size, dtype=float)
+    t_centered = t - t.mean()
+    denom = np.dot(t_centered, t_centered)
+    if denom > 0:
+        features["value_slope"] = np.dot(w, t_centered) / denom
     else:
-        slopes = np.tensordot(windows_x, centered_idx, axes=(1, 0)) / denom
+        features["value_slope"] = 0.0
 
-    feature_values: dict[str, np.ndarray] = {}
-    for i, feature_name in enumerate(feature_columns):
-        feature_values[f"{feature_name}_mean"] = means[:, i]
-        feature_values[f"{feature_name}_std"] = stds[:, i]
-        feature_values[f"{feature_name}_min"] = mins[:, i]
-        feature_values[f"{feature_name}_max"] = maxs[:, i]
-        feature_values[f"{feature_name}_last"] = lasts[:, i]
-        feature_values[f"{feature_name}_first"] = firsts[:, i]
-        feature_values[f"{feature_name}_diff_last_first"] = diffs[:, i]
-        feature_values[f"{feature_name}_slope"] = slopes[:, i]
-        feature_values[f"{feature_name}_median"] = medians[:, i]
-        feature_values[f"{feature_name}_q25"] = q25[:, i]
-        feature_values[f"{feature_name}_q75"] = q75[:, i]
-
-    return pd.DataFrame(feature_values, columns=output_columns)
+    return features
 
 
 def build_training_table(
     dataset: pd.DataFrame,
     window_size: int,
     horizon: int,
-    feature_columns: tuple[str, ...] = ("value",),
-    label_name: str = "label",
-    label_column: str = "is_incident",
-    series_column: str = "series_id",
-    timestamp_column: str = "timestamp",
-    include_metadata: bool = True,
-    dropna: bool = True,
 ) -> pd.DataFrame:
-    """Build one tabular dataset with engineered features (X) and binary label (y)."""
-    windows_x, y, windows_meta = make_incident_windows(
-        dataset=dataset,
-        window_size=window_size,
-        horizon=horizon,
-        feature_columns=feature_columns,
-        label_column=label_column,
-        series_column=series_column,
-        timestamp_column=timestamp_column,
-        dropna=dropna,
-    )
-    features_df = build_window_features(windows_x=windows_x, feature_columns=feature_columns)
+    """
+    Build a training table with features and labels for incident prediction.
 
-    parts = [features_df]
-    if include_metadata:
-        parts = [windows_meta.reset_index(drop=True), features_df]
+    Creates sliding windows over each series, computes statistical features
+    from each window, and labels each sample based on whether an incident
+    occurs in the following horizon.
+    """
+    X, y, meta = make_incident_windows(dataset, window_size, horizon)
+    features = build_window_features(X)
 
-    training_df = pd.concat(parts, axis=1)
-    training_df[label_name] = y.astype("int8")
-    return training_df
+    # Combine metadata, features, and label into one table
+    result = pd.concat([meta.reset_index(drop=True), features], axis=1)
+    result["label"] = y
+    return result
 
 
-def save_training_dataset_parquet(
-    training_df: pd.DataFrame,
-    output_path: str | Path,
-    index: bool = False,
-    compression: str = "snappy",
-) -> Path:
-
-    output_path_obj = Path(output_path)
-    output_path_obj.parent.mkdir(parents=True, exist_ok=True)
-    training_df.to_parquet(output_path_obj, index=index, compression=compression)
-
-    return output_path_obj
+def save_training_dataset_parquet(training_df: pd.DataFrame, output_path: Path) -> Path:
+    """Save training data to parquet format."""
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    training_df.to_parquet(output_path, index=False)
+    return output_path
