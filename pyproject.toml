@@ -1,0 +1,27 @@
+[project]
+name = "predictive-alerting-for-cloud-metrics"
+version = "0.1.0"
+description = "Sliding-window model to predict incidents within the next H time steps from the previous W steps."
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+  "numpy>=2.0,<3.0",
+  "pandas>=3.0,<4.0",
+  "scikit-learn>=1.8,<2.0",
+  "matplotlib>=3.10,<4.0",
+  "ipykernel>=7.2.0",
+  "pandas-stubs~=3.0.0",
+]
+
+[dependency-groups]
+dev = [
+  "pytest>=9.0,<10.0",
+  "ruff>=0.15,<1.0",
+]
+
+[tool.ruff]
+line-length = 100
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
