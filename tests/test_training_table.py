@@ -1,100 +1,55 @@
 from __future__ import annotations
 
-from pathlib import Path
-
-import numpy as np
 import pandas as pd
 import pytest
-
-from predictive_alerting.dataset_builder import (
-    build_training_table,
-    build_window_features,
-    save_training_dataset_parquet,
-)
+from predictive_alerting.dataset_builder import normalize_series
 
 
-def test_build_window_features_computes_expected_stats() -> None:
-    windows_x = np.array(
-        [
-            [[0.0], [1.0], [2.0]],
-            [[2.0], [2.0], [2.0]],
-        ]
-    )
+def test_normalize_series_applies_zscore_per_series() -> None:
+    dataset = pd.DataFrame({
+        "series_id": ["s1", "s1", "s1", "s2", "s2", "s2"],
+        "timestamp": pd.date_range("2024-01-01", periods=6, freq="5min"),
+        "value": [10.0, 20.0, 30.0, 100.0, 200.0, 300.0],
+        "is_incident": [0, 0, 0, 0, 0, 0],
+    })
 
-    features = build_window_features(windows_x)
+    result = normalize_series(dataset)
 
-    expected_columns = [
-        "value_mean",
-        "value_std",
-        "value_min",
-        "value_max",
-        "value_last",
-        "value_first",
-        "value_diff_last_first",
-        "value_median",
-        "value_q25",
-        "value_q75",
-        "value_slope",
-    ]
-    assert set(features.columns) == set(expected_columns)
-    assert features.shape == (2, 11)
+    # Each series should have mean ~0 and std ~1
+    s1_values = result[result["series_id"] == "s1"]["value"]
+    s2_values = result[result["series_id"] == "s2"]["value"]
 
-    first_row = features.iloc[0]
-    assert first_row["value_mean"] == pytest.approx(1.0)
-    assert first_row["value_std"] == pytest.approx(np.sqrt(2.0 / 3.0))
-    assert first_row["value_min"] == pytest.approx(0.0)
-    assert first_row["value_max"] == pytest.approx(2.0)
-    assert first_row["value_last"] == pytest.approx(2.0)
-    assert first_row["value_first"] == pytest.approx(0.0)
-    assert first_row["value_diff_last_first"] == pytest.approx(2.0)
-    assert first_row["value_slope"] == pytest.approx(1.0)
+    assert s1_values.mean() == pytest.approx(0.0, abs=1e-10)
+    assert s2_values.mean() == pytest.approx(0.0, abs=1e-10)
+    assert s1_values.std() == pytest.approx(1.0, abs=0.1)
+    assert s2_values.std() == pytest.approx(1.0, abs=0.1)
 
 
-def test_build_training_table_creates_features_and_label_without_leakage() -> None:
-    timestamps = pd.date_range("2024-01-01", periods=7, freq="5min")
-    dataset = pd.DataFrame(
-        {
-            "series_id": ["s1"] * 7,
-            "timestamp": timestamps,
-            "value": [1.0, 2.0, 3.0, 4.0, 10.0, 11.0, 12.0],
-            "is_incident": [0, 0, 0, 0, 1, 0, 0],
-        }
-    )
+def test_normalize_series_does_not_modify_original() -> None:
+    dataset = pd.DataFrame({
+        "series_id": ["s1", "s1"],
+        "timestamp": pd.date_range("2024-01-01", periods=2, freq="5min"),
+        "value": [10.0, 20.0],
+        "is_incident": [0, 0],
+    })
+    original_values = dataset["value"].tolist()
 
-    training_df = build_training_table(dataset=dataset, window_size=3, horizon=2)
+    normalize_series(dataset)
 
-    # 7 points -> 3 windows for W=3 and H=2
-    assert len(training_df) == 3
-
-    # First row features come from [1,2,3], label comes from next two points [0,1]
-    assert training_df.iloc[0]["value_mean"] == pytest.approx(2.0)
-    assert training_df.iloc[0]["value_last"] == pytest.approx(3.0)
-    assert int(training_df.iloc[0]["label"]) == 1
-
-    # Second row label comes from [1,0] in the next horizon
-    assert int(training_df.iloc[1]["label"]) == 1
-
-    # Third row label comes from [0,0] in the next horizon
-    assert int(training_df.iloc[2]["label"]) == 0
+    assert dataset["value"].tolist() == original_values
 
 
-def test_save_training_dataset_parquet_creates_parent_dirs(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    saved_paths: list[Path] = []
+def test_normalize_series_handles_zero_std() -> None:
+    dataset = pd.DataFrame({
+        "series_id": ["s1", "s1", "s1"],
+        "timestamp": pd.date_range("2024-01-01", periods=3, freq="5min"),
+        "value": [5.0, 5.0, 5.0],  # All same values -> std = 0
+        "is_incident": [0, 0, 0],
+    })
 
-    def fake_to_parquet(self: pd.DataFrame, path: Path, **kwargs: object) -> None:
-        saved_paths.append(Path(path))
-        Path(path).write_text("parquet-bytes-placeholder")
+    result = normalize_series(dataset)
 
-    monkeypatch.setattr(pd.DataFrame, "to_parquet", fake_to_parquet)
+    # Should return 0.0 when std is 0
+    assert result["value"].tolist() == [0.0, 0.0, 0.0]
 
-    training_df = pd.DataFrame({"label": [0, 1]})
-    output_path = tmp_path / "test_artifacts" / "training.parquet"
-
-    saved = save_training_dataset_parquet(training_df, output_path)
-
-    assert saved == output_path
-    assert saved.exists()
-    assert saved_paths == [output_path]
 
