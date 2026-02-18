@@ -19,7 +19,7 @@ def train_model(
     Train a model with wandb logging.
 
     Args:
-        X_train: Training features, shape (n_samples, window_size, 1)
+        X_train: Training features, shape (n_samples, 1, window_size)
         y_train: Training labels, shape (n_samples,)
         X_val: Validation features
         y_val: Validation labels

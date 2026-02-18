@@ -19,7 +19,7 @@ def predict_proba(model: nn.Module, X: np.ndarray) -> np.ndarray:
 
     Args:
         model: Trained PyTorch model
-        X: Features, shape (n_samples, window_size, 1)
+        X: Features, shape (n_samples, 1, window_size)
 
     Returns:
         Array of probabilities, shape (n_samples,)

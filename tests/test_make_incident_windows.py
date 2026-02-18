@@ -19,7 +19,7 @@ def test_make_sliding_windows_builds_expected_labels() -> None:
 
     x, y = make_sliding_windows(dataset=dataset, window_size=3, horizon=2)
 
-    assert x.shape == (6, 3, 1)
+    assert x.shape == (6, 1, 3)
     assert y.shape == (6,)
     assert y.tolist() == [1, 1, 0, 1, 1, 0]
 

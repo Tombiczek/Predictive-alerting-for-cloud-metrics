@@ -33,13 +33,10 @@ TEST_SERIES = [
 
 # Model configuration
 CONFIG = {
+    "model_name": "InceptionTime",
     "window_size": 24,
     "horizon": 12,
-    "filters": [32, 64],
-    "kernel_size": 3,
-    "pool_size": 2,
-    "dropout_rate": 0.3,
-    "dense_units": 64,
+    "model_kwargs": {},
     "batch_size": 32,
     "learning_rate": 0.001,
     "epochs": 50,

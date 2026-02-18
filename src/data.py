@@ -97,7 +97,7 @@ def make_sliding_windows(
     Build sliding-window samples for incident classification.
 
     Returns:
-    - X: array of shape (n_samples, window_size, 1)
+    - X: array of shape (n_samples, 1, window_size)
     - y: array of shape (n_samples,) with binary labels (1 if incident in horizon)
     """
     x_samples = []
@@ -111,9 +111,9 @@ def make_sliding_windows(
 
         n_samples = len(series_df) - window_size - horizon + 1
         for i in range(n_samples):
-            x_samples.append(values[i : i + window_size].reshape(-1, 1))
+            x_samples.append(values[i : i + window_size].reshape(1, -1))
             y_samples.append(int(labels[i + window_size : i + window_size + horizon].any()))
 
-    X = np.stack(x_samples) if x_samples else np.empty((0, window_size, 1))
+    X = np.stack(x_samples) if x_samples else np.empty((0, 1, window_size))
     y = np.array(y_samples, dtype=np.int8)
     return X, y

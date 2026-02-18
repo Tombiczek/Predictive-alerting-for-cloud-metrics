@@ -14,6 +14,7 @@ dependencies = [
   "fastparquet>=2025.12.0",
   "torch>=2.0,<3.0",
   "wandb>=0.16,<1.0",
+  "tsai>=0.4.1",
 ]
 
 [dependency-groups]
@@ -28,4 +29,4 @@ line-length = 100
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
-pythonpath = ["src"]
+pythonpath = ["."]
