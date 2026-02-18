@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import json
 from pathlib import Path
 
@@ -36,9 +34,6 @@ def build_labeled_dataset(
     parts = []
     for csv_path in series_paths:
         series_id = f"{csv_path.parent.name}/{csv_path.name}"
-
-        if series_id not in windows_by_series:
-            raise KeyError(f"No incident windows for '{series_id}' in {labels_path}")
 
         windows = windows_by_series[series_id]
 
@@ -97,51 +92,28 @@ def make_sliding_windows(
     dataset: pd.DataFrame,
     window_size: int,
     horizon: int,
-) -> tuple[np.ndarray, np.ndarray, pd.DataFrame]:
+) -> tuple[np.ndarray, np.ndarray]:
     """
     Build sliding-window samples for incident classification.
 
     Returns:
     - X: array of shape (n_samples, window_size, 1)
-    - y: array of shape (n_samples,) with binary labels
-    - meta: DataFrame with window timestamps for debugging
+    - y: array of shape (n_samples,) with binary labels (1 if incident in horizon)
     """
     x_samples = []
     y_samples = []
-    metadata = []
 
-    for series_id, series_df in dataset.groupby("series_id", sort=False):
+    for _, series_df in dataset.groupby("series_id", sort=False):
         series_df = series_df.sort_values("timestamp").reset_index(drop=True)
 
         values = series_df["value"].to_numpy(dtype=float)
         labels = series_df["is_incident"].to_numpy()
-        timestamps = series_df["timestamp"].to_numpy()
 
         n_samples = len(series_df) - window_size - horizon + 1
-        if n_samples <= 0:
-            continue
-
         for i in range(n_samples):
-            x_window = values[i : i + window_size]
-            y_window = labels[i + window_size : i + window_size + horizon]
+            x_samples.append(values[i : i + window_size].reshape(-1, 1))
+            y_samples.append(int(labels[i + window_size : i + window_size + horizon].any()))
 
-            x_samples.append(x_window.reshape(-1, 1))
-            y_samples.append(int(y_window.any()))
-            metadata.append(
-                {
-                    "series_id": series_id,
-                    "window_start": timestamps[i],
-                    "window_end": timestamps[i + window_size - 1],
-                    "horizon_start": timestamps[i + window_size],
-                    "horizon_end": timestamps[i + window_size + horizon - 1],
-                }
-            )
-
-    if x_samples:
-        X = np.stack(x_samples)
-    else:
-        X = np.empty((0, window_size, 1), dtype=float)
-
+    X = np.stack(x_samples) if x_samples else np.empty((0, window_size, 1))
     y = np.array(y_samples, dtype=np.int8)
-    meta = pd.DataFrame(metadata)
-    return X, y, meta
+    return X, y

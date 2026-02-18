@@ -1,8 +1,7 @@
-from __future__ import annotations
-
 import pandas as pd
 import pytest
-from predictive_alerting.dataset_builder import normalize_series
+
+from src.data import normalize_series
 
 
 def test_normalize_series_applies_zscore_per_series() -> None:
