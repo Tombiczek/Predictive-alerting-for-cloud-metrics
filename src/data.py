@@ -26,7 +26,7 @@ def build_labeled_dataset(
     """
     Load multiple CSV files and label each row with incident info.
 
-    Returns a DataFrame with columns:\n
+    Returns a DataFrame with columns:
     - series_id: identifier derived from filename
     - timestamp, value: the raw metric data
     - is_incident: 1 if this timestamp falls within an incident window
@@ -77,9 +77,7 @@ def summarize_series(dataset: pd.DataFrame) -> pd.DataFrame:
 
 
 def normalize_series(dataset: pd.DataFrame) -> pd.DataFrame:
-    """
-    Normalize values per series using z-score normalization.
-    """
+    """Normalize `value` per series with z-score normalization."""
     dataset = dataset.copy()
 
     for series_id in dataset["series_id"].unique():
@@ -102,10 +100,11 @@ def make_sliding_windows(
 ) -> tuple[np.ndarray, np.ndarray, pd.DataFrame]:
     """
     Build sliding-window samples for incident classification.
-    Returns:\n
-        X: array of shape (n_samples, window_size, 1)
-        y: array of shape (n_samples,) with binary labels
-        meta: DataFrame with window timestamps for debugging
+
+    Returns:
+    - X: array of shape (n_samples, window_size, 1)
+    - y: array of shape (n_samples,) with binary labels
+    - meta: DataFrame with window timestamps for debugging
     """
     x_samples = []
     y_samples = []
@@ -119,6 +118,8 @@ def make_sliding_windows(
         timestamps = series_df["timestamp"].to_numpy()
 
         n_samples = len(series_df) - window_size - horizon + 1
+        if n_samples <= 0:
+            continue
 
         for i in range(n_samples):
             x_window = values[i : i + window_size]
@@ -126,13 +127,15 @@ def make_sliding_windows(
 
             x_samples.append(x_window.reshape(-1, 1))
             y_samples.append(int(y_window.any()))
-            metadata.append({
-                "series_id": series_id,
-                "window_start": timestamps[i],
-                "window_end": timestamps[i + window_size - 1],
-                "horizon_start": timestamps[i + window_size],
-                "horizon_end": timestamps[i + window_size + horizon - 1],
-            })
+            metadata.append(
+                {
+                    "series_id": series_id,
+                    "window_start": timestamps[i],
+                    "window_end": timestamps[i + window_size - 1],
+                    "horizon_start": timestamps[i + window_size],
+                    "horizon_end": timestamps[i + window_size + horizon - 1],
+                }
+            )
 
     if x_samples:
         X = np.stack(x_samples)
@@ -142,5 +145,3 @@ def make_sliding_windows(
     y = np.array(y_samples, dtype=np.int8)
     meta = pd.DataFrame(metadata)
     return X, y, meta
-
-
