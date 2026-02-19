@@ -1,6 +1,5 @@
 import numpy as np
 import torch
-import torch.nn as nn
 import wandb
 from sklearn.metrics import (
     accuracy_score,
@@ -11,32 +10,29 @@ from sklearn.metrics import (
     recall_score,
     roc_auc_score,
 )
+from tsai.tslearner import TSClassifier
 
 
-def predict_proba(model: nn.Module, X: np.ndarray) -> np.ndarray:
+def predict_proba(clf: TSClassifier, X: np.ndarray) -> np.ndarray:
     """
-    Run inference and return predicted probabilities.
+    Run inference through a trained TSClassifier and return probabilities.
 
     Args:
-        model: Trained PyTorch model
-        X: Features, shape (n_samples, 1, window_size)
+        clf: A trained TSClassifier (returned by train_model).
+        X:   Features, shape (n_samples, 1, window_size).
 
     Returns:
-        Array of probabilities, shape (n_samples,)
+        Array of probabilities, shape (n_samples,).
     """
-    device = next(model.parameters()).device
-    model.eval()
+    X_tensor = torch.tensor(X, dtype=torch.float32)
 
-    X_t = torch.FloatTensor(X).to(device)
-    with torch.no_grad():
-        outputs = model(X_t)
-        probs = torch.sigmoid(outputs).cpu().numpy().flatten()
-
-    return probs
+    # get_X_preds returns (predictions, targets, probabilities)
+    _, _, probs = clf.get_X_preds(X_tensor)
+    return probs.numpy().flatten()
 
 
 def find_optimal_threshold(y_true: np.ndarray, y_probs: np.ndarray) -> float:
-    """Find optimal classification threshold by maximizing F1."""
+    """Find the classification threshold that maximises F1."""
     precisions, recalls, thresholds = precision_recall_curve(y_true, y_probs)
     f1_scores = 2 * (precisions * recalls) / (precisions + recalls + 1e-10)
     best_idx = np.argmax(f1_scores)
@@ -44,7 +40,7 @@ def find_optimal_threshold(y_true: np.ndarray, y_probs: np.ndarray) -> float:
 
 
 def compute_metrics(y_true: np.ndarray, y_probs: np.ndarray, threshold: float) -> dict:
-    """Compute classification metrics at a given threshold."""
+    """Compute binary classification metrics at a given threshold."""
     y_pred = (y_probs >= threshold).astype(int)
     tn, fp, fn, tp = confusion_matrix(y_true, y_pred).ravel()
 
@@ -63,24 +59,24 @@ def compute_metrics(y_true: np.ndarray, y_probs: np.ndarray, threshold: float) -
 
 
 def evaluate_model(
-    model: nn.Module,
+    clf: TSClassifier,
     X: np.ndarray,
     y: np.ndarray,
     prefix: str = "val",
 ) -> dict:
     """
-    Evaluate model, find optimal threshold, and log metrics to wandb.
+    Evaluate a trained TSClassifier, find the optimal threshold, and log to wandb.
 
     Args:
-        model: Trained model
-        X: Features
-        y: Labels
-        prefix: Metric name prefix (e.g., "val", "test")
+        clf:    Trained TSClassifier (returned by train_model).
+        X:      Features, shape (n_samples, 1, window_size).
+        y:      Ground-truth labels, shape (n_samples,).
+        prefix: Metric name prefix logged to wandb (e.g. "val", "test").
 
     Returns:
-        Dictionary of metrics
+        Dictionary of computed metrics.
     """
-    y_probs = predict_proba(model, X)
+    y_probs = predict_proba(clf, X)
     threshold = find_optimal_threshold(y, y_probs)
     metrics = compute_metrics(y, y_probs, threshold)
 
