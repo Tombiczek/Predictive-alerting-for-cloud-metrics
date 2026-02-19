@@ -10,7 +10,7 @@ import torch
 import wandb
 
 from src.data import build_labeled_dataset, make_sliding_windows, normalize_series
-from src.evaluate import evaluate_model
+from src.evaluate import evaluate_model, predict_proba_tsai
 from src.train import train_model
 
 # Data paths
@@ -73,10 +73,12 @@ def main():
 
     # Evaluate
     print("\nEvaluating on validation set...")
-    evaluate_model(model, X_val, y_val, prefix="val")
+    val_probs = predict_proba_tsai(model, X_val)
+    val_metrics = evaluate_model(y_val, val_probs, prefix="val")
 
     print("\nEvaluating on test set...")
-    evaluate_model(model, X_test, y_test, prefix="test")
+    test_probs = predict_proba_tsai(model, X_test)
+    evaluate_model(y_test, test_probs, prefix="test", threshold=val_metrics["threshold"])
 
     # Save model artifact to wandb
     model_path = Path("model.pt")

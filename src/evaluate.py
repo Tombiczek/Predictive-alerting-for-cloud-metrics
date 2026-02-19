@@ -13,26 +13,18 @@ from sklearn.metrics import (
 from tsai.tslearner import TSClassifier
 
 
-def predict_proba(clf: TSClassifier, X: np.ndarray) -> np.ndarray:
-    """
-    Run inference through a trained TSClassifier and return probabilities.
-
-    Args:
-        clf: A trained TSClassifier (returned by train_model).
-        X:   Features, shape (n_samples, 1, window_size).
-
-    Returns:
-        Array of probabilities, shape (n_samples,).
-    """
+def predict_proba_tsai(clf: TSClassifier, X: np.ndarray) -> np.ndarray:
     X_tensor = torch.tensor(X, dtype=torch.float32)
-
-    # get_X_preds returns (predictions, targets, probabilities)
     _, _, probs = clf.get_X_preds(X_tensor)
     return probs.numpy().flatten()
 
 
+def predict_proba_sklearn(clf, X: np.ndarray) -> np.ndarray:
+    return clf.predict_proba(X)[:, 1]
+
+
 def find_optimal_threshold(y_true: np.ndarray, y_probs: np.ndarray) -> float:
-    """Find the classification threshold that maximises F1."""
+    """Find the classification threshold that maximizes F1."""
     precisions, recalls, thresholds = precision_recall_curve(y_true, y_probs)
     f1_scores = 2 * (precisions * recalls) / (precisions + recalls + 1e-10)
     best_idx = np.argmax(f1_scores)
@@ -59,28 +51,16 @@ def compute_metrics(y_true: np.ndarray, y_probs: np.ndarray, threshold: float) -
 
 
 def evaluate_model(
-    clf: TSClassifier,
-    X: np.ndarray,
-    y: np.ndarray,
+    y_true: np.ndarray,
+    y_probs: np.ndarray,
     prefix: str = "val",
+    threshold: float | None = None
 ) -> dict:
-    """
-    Evaluate a trained TSClassifier, find the optimal threshold, and log to wandb.
+    if threshold is None:
+        threshold = find_optimal_threshold(y_true, y_probs)
 
-    Args:
-        clf:    Trained TSClassifier (returned by train_model).
-        X:      Features, shape (n_samples, 1, window_size).
-        y:      Ground-truth labels, shape (n_samples,).
-        prefix: Metric name prefix logged to wandb (e.g. "val", "test").
+    metrics = compute_metrics(y_true, y_probs, threshold)
 
-    Returns:
-        Dictionary of computed metrics.
-    """
-    y_probs = predict_proba(clf, X)
-    threshold = find_optimal_threshold(y, y_probs)
-    metrics = compute_metrics(y, y_probs, threshold)
-
-    # Log to wandb with prefix
     wandb.log({f"{prefix}_{k}": v for k, v in metrics.items()})
 
     print(
