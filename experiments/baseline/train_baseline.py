@@ -5,7 +5,7 @@ import wandb
 
 from src.data.datasets import load_features_dataset
 from src.evaluate import evaluate_model, predict_proba_sklearn
-from src.train import train_sklearn_model
+from src.train import train_tree_classifier
 
 WINDOW_SIZE = 24
 HORIZON = 12
@@ -36,7 +36,7 @@ def main():
 
     # Train
     print("\nTraining model...")
-    model = train_sklearn_model(X_train, y_train, CONFIG)
+    model = train_tree_classifier(X_train, y_train, CONFIG)
 
     # Evaluate
     print("\nEvaluating on validation set...")

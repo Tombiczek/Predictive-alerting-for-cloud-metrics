@@ -1,9 +1,11 @@
 import argparse
 
 import wandb
+from sklearn.metrics import average_precision_score
 
 from src.data.datasets import load_features_dataset
-from src.train import train_sklearn_model
+from src.evaluate import predict_proba_sklearn
+from src.train import train_tree_classifier
 
 WINDOW_SIZE = 24
 HORIZON = 12
@@ -15,18 +17,18 @@ sweep_configuration = {
         "n_estimators": {"values": [100, 300, 500]},
         "max_features": {"values": ["sqrt", "log2"]},
         "max_depth": {"values": [None, 10, 20]},
+        "max_leaf_nodes": {"value": None},
         "min_samples_split": {"values": [2, 5]},
         "min_samples_leaf": {"values": [1, 2]},
+        "min_impurity_decrease": {"value": 0.0},
         "class_weight": {"value": "balanced"},
     },
 }
-
 
 data = load_features_dataset(WINDOW_SIZE, HORIZON)
 X_train, y_train = data["X_train"], data["y_train"]
 X_val, y_val = data["X_val"], data["y_val"]
 X_test, y_test = data["X_test"], data["y_test"]
-
 
 def run_sweep_trial():
     wandb.init(
@@ -41,27 +43,32 @@ def run_sweep_trial():
         "n_estimators": wandb.config.n_estimators,
         "max_features": wandb.config.max_features,
         "max_depth": wandb.config.max_depth,
+        "max_leaf_nodes": wandb.config.max_leaf_nodes,
         "min_samples_split": wandb.config.min_samples_split,
         "min_samples_leaf": wandb.config.min_samples_leaf,
+        "min_impurity_decrease": wandb.config.min_impurity_decrease,
         "class_weight": wandb.config.class_weight,
     }
 
-    clf = train_sklearn_model(X_train, y_train, config)
+    clf = train_tree_classifier(X_train, y_train, config)
 
-    val_probs = clf.predict_proba(X_val)[:, 1]
-    from sklearn.metrics import average_precision_score
-    val_ap = average_precision_score(y_val, val_probs)
+    val_probs = predict_proba_sklearn(clf, X_val)
+    train_probs = predict_proba_sklearn(clf, X_train)
 
-    wandb.log({"val_average_precision": val_ap})
+    wandb.log({
+    "val_average_precision": average_precision_score(y_val, val_probs),
+    "train_average_precision": average_precision_score(y_train, train_probs)
+    })
+
     wandb.finish()
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Run a W&B sweep for hyperparameter tuning.")
+    parser = argparse.ArgumentParser()
     parser.add_argument(
         "--count",
         type=int,
-        default=None,
+        default=20,
     )
     args = parser.parse_args()
 

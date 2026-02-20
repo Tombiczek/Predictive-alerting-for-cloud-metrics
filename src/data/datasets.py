@@ -9,9 +9,6 @@ from src.data.windowing import make_sliding_windows
 DATA_DIR = Path("../data")
 LABELS_PATH = DATA_DIR / "combined_windows.json"
 
-WINDOW_SIZE = 24
-HORIZON = 12
-
 TRAIN_SERIES = [
     DATA_DIR / "realAWSCloudwatch/ec2_cpu_utilization_24ae8d.csv",
     DATA_DIR / "realAWSCloudwatch/ec2_cpu_utilization_53ea38.csv",
@@ -39,10 +36,7 @@ TEST_SERIES = [
 ]
 
 
-def load_timeseries_dataset(
-    window_size: int = WINDOW_SIZE,
-    horizon: int = HORIZON,
-) -> dict[str, np.ndarray]:
+def load_timeseries_dataset(window_size: int, horizon: int) -> dict[str, np.ndarray]:
 
     train_df = build_labeled_dataset(TRAIN_SERIES, LABELS_PATH)
     train_df = normalize_series(train_df)
@@ -63,10 +57,7 @@ def load_timeseries_dataset(
     }
 
 
-def load_features_dataset(
-        window_size: int = WINDOW_SIZE,
-        horizon: int = HORIZON,
-) -> dict[str, np.ndarray]:
+def load_features_dataset(window_size: int, horizon: int) -> dict[str, np.ndarray]:
 
     train_df = build_labeled_dataset(TRAIN_SERIES, LABELS_PATH)
     train_df = normalize_series(train_df)

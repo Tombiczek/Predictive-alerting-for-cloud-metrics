@@ -1,13 +1,9 @@
 import argparse
-from pathlib import Path
 
 import wandb
 
 from src.data.datasets import load_timeseries_dataset
-from src.train import train_tsai_model
-
-DATA_DIR = Path("../data")
-LABELS_PATH = DATA_DIR / "combined_windows.json"
+from src.train import train_deep_classifier
 
 WINDOW_SIZE = 24
 HORIZON = 12
@@ -62,13 +58,13 @@ def run_sweep_trial():
         },
     }
 
-    train_tsai_model(X_train, y_train, X_val, y_val, config)
+    train_deep_classifier(X_train, y_train, X_val, y_val, config)
 
     wandb.finish()
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Run a W&B sweep for hyperparameter tuning.")
+    parser = argparse.ArgumentParser()
     parser.add_argument(
         "--count",
         type=int,

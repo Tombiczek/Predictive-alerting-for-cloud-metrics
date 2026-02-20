@@ -8,7 +8,7 @@ from tsai.models.InceptionTimePlus import InceptionTimePlus
 from tsai.tslearner import TSClassifier
 
 
-def train_tsai_model(
+def train_deep_classifier(
     X_train: np.ndarray,
     y_train: np.ndarray,
     X_val: np.ndarray,
@@ -59,7 +59,7 @@ def train_tsai_model(
 
     return clf
 
-def train_sklearn_model(
+def train_tree_classifier(
     X_train: np.ndarray,
     y_train: np.ndarray,
     config: dict,

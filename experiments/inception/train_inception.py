@@ -5,7 +5,7 @@ import wandb
 
 from src.data.datasets import load_timeseries_dataset
 from src.evaluate import evaluate_model, predict_proba_tsai
-from src.train import train_tsai_model
+from src.train import train_deep_classifier
 
 WINDOW_SIZE = 24
 HORIZON = 12
@@ -35,7 +35,7 @@ def main():
 
     # Train
     print("\nTraining model...")
-    model = train_tsai_model(X_train, y_train, X_val, y_val, CONFIG)
+    model = train_deep_classifier(X_train, y_train, X_val, y_val, CONFIG)
 
     # Evaluate
     print("\nEvaluating on validation set...")
