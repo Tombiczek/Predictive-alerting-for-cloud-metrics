@@ -16,6 +16,7 @@ dependencies = [
   "wandb>=0.16,<1.0",
   "tsai>=0.4.1",
   "joblib>=1.5.3",
+  "xgboost>=3.2.0"
 ]
 
 [dependency-groups]

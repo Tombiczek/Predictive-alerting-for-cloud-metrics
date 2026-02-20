@@ -48,7 +48,7 @@ def run_sweep_trial():
     )
 
     config = {
-        "model_name": "InceptionTime",
+        "model_name": "InceptionTimePlus",
         "window_size": WINDOW_SIZE,
         "horizon": HORIZON,
         "batch_size": wandb.config.batch_size,
