@@ -1,9 +1,14 @@
 import argparse
+import os
 
 import wandb
+from dotenv import load_dotenv
 
 from src.data.datasets import load_timeseries_dataset
 from src.train import train_deep_classifier
+
+load_dotenv()
+wandb.login(key=os.getenv("WANDB_API_KEY"))
 
 WINDOW_SIZE = 24
 HORIZON = 12

@@ -75,6 +75,7 @@ def train_tree_classifier(
     class_weight = config.get("class_weight", "balanced")
     ccp_alpha = config.get("ccp_alpha", 0.0)
     bootstrap = config.get("bootstrap", True)
+    criterion = config.get("criterion", "gini")
 
     clf = RandomForestClassifier(
         n_estimators=n_estimators,
@@ -87,6 +88,7 @@ def train_tree_classifier(
         class_weight=class_weight,
         ccp_alpha=ccp_alpha,
         bootstrap=bootstrap,
+        criterion=criterion,
         random_state=42,
         n_jobs=-1,
     )

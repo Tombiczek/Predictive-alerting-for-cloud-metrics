@@ -10,17 +10,17 @@ from src.train import train_tree_classifier
 WINDOW_SIZE = 24
 HORIZON = 12
 
-# Model configuration
+# Configuration taken from wandb sweep
 CONFIG = {
     "model_name": "RandomForest",
     "window_size": 24,
     "horizon": 12,
-    "n_estimators": 100,
-    "max_features": "sqrt",
-    "max_depth": None,
-    "max_leaf_nodes": None,
-    "min_samples_split": 2,
-    "min_samples_leaf": 1,
+    "n_estimators": 300,
+    "max_features": "log2",
+    "max_depth": 5,
+    "max_leaf_nodes": 100,
+    "min_samples_split": 10,
+    "min_samples_leaf": 2,
     "min_impurity_decrease": 0.0,
     "class_weight": "balanced",
 }

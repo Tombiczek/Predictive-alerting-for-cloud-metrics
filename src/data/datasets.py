@@ -6,7 +6,9 @@ from src.data.features import extract_features
 from src.data.loading import build_labeled_dataset, normalize_series
 from src.data.windowing import make_sliding_windows
 
-DATA_DIR = Path("../data")
+REPO_ROOT = Path(__file__).resolve().parents[2]
+
+DATA_DIR = REPO_ROOT / "data"
 LABELS_PATH = DATA_DIR / "combined_windows.json"
 
 TRAIN_SERIES = [

@@ -210,3 +210,5 @@ __marimo__/
 artifacts/
 wandb/
 
+experiments/baseline/wandb_sweep_baseline/
+
