@@ -3,11 +3,12 @@ import torch
 from fastai.callback.tracker import EarlyStoppingCallback, SaveModelCallback
 from fastai.callback.wandb import WandbCallback
 from fastai.metrics import APScoreBinary
+from sklearn.ensemble import RandomForestClassifier
 from tsai.models.InceptionTimePlus import InceptionTimePlus
 from tsai.tslearner import TSClassifier
 
 
-def train_model(
+def train_tsai_model(
     X_train: np.ndarray,
     y_train: np.ndarray,
     X_val: np.ndarray,
@@ -55,5 +56,37 @@ def train_model(
     clf.fit(epochs)
 
     clf.learner.load("best")
+
+    return clf
+
+def train_sklearn_model(
+    X_train: np.ndarray,
+    y_train: np.ndarray,
+    config: dict,
+) -> RandomForestClassifier:
+
+    n_estimators = config.get("n_estimators", 100)
+    max_features = config.get("max_features", "sqrt")
+    max_depth = config.get("max_depth", None)
+    max_leaf_nodes = config.get("max_leaf_nodes", None)
+    min_samples_split = config.get("min_samples_split", 2)
+    min_samples_leaf = config.get("min_samples_leaf", 1)
+    min_impurity_decrease = config.get("min_impurity_decrease", 0.0)
+    class_weight = config.get("class_weight", "balanced")
+
+    clf = RandomForestClassifier(
+        n_estimators=n_estimators,
+        max_features=max_features,
+        max_depth=max_depth,
+        max_leaf_nodes=max_leaf_nodes,
+        min_samples_split=min_samples_split,
+        min_samples_leaf=min_samples_leaf,
+        min_impurity_decrease=min_impurity_decrease,
+        class_weight=class_weight,
+        random_state=42,
+        n_jobs=-1,
+    )
+
+    clf.fit(X_train, y_train)
 
     return clf
