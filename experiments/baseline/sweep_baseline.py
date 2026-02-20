@@ -11,17 +11,19 @@ WINDOW_SIZE = 24
 HORIZON = 12
 
 sweep_configuration = {
-    "method": "grid",
+    "method": "random",
     "metric": {"goal": "maximize", "name": "val_average_precision"},
     "parameters": {
         "n_estimators": {"values": [100, 300, 500]},
-        "max_features": {"values": ["sqrt", "log2"]},
+        "max_features": {"values": ["sqrt", None]},
         "max_depth": {"values": [None, 10, 20]},
-        "max_leaf_nodes": {"value": None},
+        "max_leaf_nodes": {"values": [None, 100, 500]},
         "min_samples_split": {"values": [2, 5]},
-        "min_samples_leaf": {"values": [1, 2]},
+        "min_samples_leaf": {"values": [1, 2, 5]},
         "min_impurity_decrease": {"value": 0.0},
         "class_weight": {"value": "balanced"},
+        "ccp_alpha": {"values": [0.0, 0.0001, 0.001, 0.01]},
+        "bootstrap": {"values": [True, False]},
     },
 }
 
@@ -68,7 +70,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--count",
         type=int,
-        default=20,
+        default=100,
     )
     args = parser.parse_args()
 

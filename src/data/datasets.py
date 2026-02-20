@@ -10,29 +10,29 @@ DATA_DIR = Path("../data")
 LABELS_PATH = DATA_DIR / "combined_windows.json"
 
 TRAIN_SERIES = [
-    DATA_DIR / "realAWSCloudwatch/ec2_cpu_utilization_24ae8d.csv",
-    DATA_DIR / "realAWSCloudwatch/ec2_cpu_utilization_53ea38.csv",
-    DATA_DIR / "realAWSCloudwatch/ec2_cpu_utilization_5f5533.csv",
     DATA_DIR / "realAWSCloudwatch/ec2_cpu_utilization_825cc2.csv",
     DATA_DIR / "realAWSCloudwatch/ec2_cpu_utilization_c6585a.csv",
-    DATA_DIR / "realAWSCloudwatch/ec2_cpu_utilization_fe7f93.csv",
-    DATA_DIR / "realAWSCloudwatch/ec2_disk_write_bytes_1ef3de.csv",
-    DATA_DIR / "realAWSCloudwatch/ec2_network_in_257a54.csv",
-    DATA_DIR / "realAWSCloudwatch/grok_asg_anomaly.csv",
-    DATA_DIR / "realAWSCloudwatch/iio_us-east-1_i-a2eb1cd9_NetworkIn.csv",
     DATA_DIR / "realAWSCloudwatch/rds_cpu_utilization_cc0c53.csv",
+    DATA_DIR / "realAWSCloudwatch/ec2_cpu_utilization_5f5533.csv",
+    DATA_DIR / "realAWSCloudwatch/ec2_disk_write_bytes_c0d644.csv",
+    DATA_DIR / "realAWSCloudwatch/ec2_network_in_5abac7.csv",
+    DATA_DIR / "realAWSCloudwatch/ec2_cpu_utilization_ac20cd.csv",
+    DATA_DIR / "realAWSCloudwatch/ec2_cpu_utilization_24ae8d.csv",
+    DATA_DIR / "realAWSCloudwatch/ec2_disk_write_bytes_1ef3de.csv",
+    DATA_DIR / "realAWSCloudwatch/iio_us-east-1_i-a2eb1cd9_NetworkIn.csv",
+    DATA_DIR / "realAWSCloudwatch/ec2_cpu_utilization_53ea38.csv",
 ]
 
 VAL_SERIES = [
-    DATA_DIR / "realAWSCloudwatch/ec2_network_in_5abac7.csv",
+    DATA_DIR / "realAWSCloudwatch/ec2_cpu_utilization_77c1ca.csv",
+    DATA_DIR / "realAWSCloudwatch/ec2_network_in_257a54.csv",
     DATA_DIR / "realAWSCloudwatch/elb_request_count_8c0756.csv",
-    DATA_DIR / "realAWSCloudwatch/ec2_cpu_utilization_ac20cd.csv",
 ]
 
 TEST_SERIES = [
-    DATA_DIR / "realAWSCloudwatch/ec2_cpu_utilization_77c1ca.csv",
-    DATA_DIR / "realAWSCloudwatch/ec2_disk_write_bytes_c0d644.csv",
+    DATA_DIR / "realAWSCloudwatch/ec2_cpu_utilization_fe7f93.csv",
     DATA_DIR / "realAWSCloudwatch/rds_cpu_utilization_e47b3b.csv",
+    DATA_DIR / "realAWSCloudwatch/grok_asg_anomaly.csv",
 ]
 
 

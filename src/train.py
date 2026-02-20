@@ -73,6 +73,8 @@ def train_tree_classifier(
     min_samples_leaf = config.get("min_samples_leaf", 1)
     min_impurity_decrease = config.get("min_impurity_decrease", 0.0)
     class_weight = config.get("class_weight", "balanced")
+    ccp_alpha = config.get("ccp_alpha", 0.0)
+    bootstrap = config.get("bootstrap", True)
 
     clf = RandomForestClassifier(
         n_estimators=n_estimators,
@@ -83,6 +85,8 @@ def train_tree_classifier(
         min_samples_leaf=min_samples_leaf,
         min_impurity_decrease=min_impurity_decrease,
         class_weight=class_weight,
+        ccp_alpha=ccp_alpha,
+        bootstrap=bootstrap,
         random_state=42,
         n_jobs=-1,
     )
