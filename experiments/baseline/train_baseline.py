@@ -1,11 +1,20 @@
+import os
 import pickle
 from pathlib import Path
 
 import wandb
+from dotenv import load_dotenv
 
 from src.data.datasets import load_features_dataset
 from src.evaluate import evaluate_model, predict_proba_sklearn
 from src.train import train_tree_classifier
+
+load_dotenv()
+wandb.login(key=os.getenv("WANDB_API_KEY"))
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+ARTIFACTS_DIR = REPO_ROOT / "artifacts"
+ARTIFACTS_DIR.mkdir(exist_ok=True)
 
 WINDOW_SIZE = 24
 HORIZON = 12
@@ -27,34 +36,37 @@ CONFIG = {
 
 
 def main():
-    wandb.init(project="predictive-alerting", config=CONFIG)
+    wandb.init(
+        entity="tombik-warsaw-university-of-technology",
+        project="Predictive-alerting-for-cloud-metrics",
+        config=CONFIG,
+        name="rf_best"
+    )
 
     data = load_features_dataset(WINDOW_SIZE, HORIZON)
     X_train, y_train = data["X_train"], data["y_train"]
     X_val, y_val = data["X_val"], data["y_val"]
     X_test, y_test = data["X_test"], data["y_test"]
 
-    # Train
     print("\nTraining model...")
     model = train_tree_classifier(X_train, y_train, CONFIG)
 
-    # Evaluate
     print("\nEvaluating on validation set...")
     val_probs = predict_proba_sklearn(model, X_val)
     val_metrics = evaluate_model(y_val, val_probs, prefix="val")
 
     print("\nEvaluating on test set...")
     test_probs = predict_proba_sklearn(model, X_test)
-    evaluate_model(y_test, test_probs, prefix="test", threshold=val_metrics["threshold"])
+    test_metrics = evaluate_model(y_test, test_probs, prefix="test", threshold=val_metrics["threshold"])
 
-    # Save model artifact to wandb
-    model_path = Path("model.pkl")
+    wandb.log({
+        **val_metrics,
+        **test_metrics
+    })
+
+    model_path = ARTIFACTS_DIR / "rf_best.pkl"
     with open(model_path, "wb") as f:
         pickle.dump({"model": model, "config": CONFIG}, f)
-    artifact = wandb.Artifact("model", type="model")
-    artifact.add_file(str(model_path))
-    wandb.log_artifact(artifact)
-    model_path.unlink()  # Clean up local file
 
     wandb.finish()
     print("\nDone!")
