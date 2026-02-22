@@ -1,11 +1,9 @@
 import numpy as np
 import torch
-from fastai.callback.tracker import EarlyStoppingCallback, SaveModelCallback
+from fastai.callback.tracker import SaveModelCallback, EarlyStoppingCallback
 from fastai.callback.wandb import WandbCallback
-from fastai.metrics import APScoreBinary
 from sklearn.ensemble import RandomForestClassifier
-from tsai.models.InceptionTimePlus import InceptionTimePlus
-from tsai.tslearner import TSClassifier
+from tsai.all import TSClassifier, InceptionTimePlus, APScoreBinary
 
 
 def train_deep_classifier(
@@ -17,7 +15,10 @@ def train_deep_classifier(
 ) -> TSClassifier:
 
     X = np.concatenate([X_train, X_val]).astype(np.float32)
-    y = np.concatenate([y_train, y_val]).astype(np.float32).reshape(-1, 1)
+
+    y_train_1d = y_train.astype(np.int64).reshape(-1)
+    y_val_1d = y_val.astype(np.int64).reshape(-1)
+    y = np.concatenate([y_train_1d, y_val_1d]).astype(np.int64).reshape(-1)
 
     n_train = len(X_train)
     splits = (list(range(n_train)), list(range(n_train, len(X))))
@@ -26,11 +27,14 @@ def train_deep_classifier(
     lr = config.get("learning_rate", 1e-3)
     epochs = config.get("epochs", 50)
     patience = config.get("patience", 10)
-    pos_weight = config.get("pos_weight", 1.0)
+    pos_weight = float(config.get("pos_weight", 1.0))
     model_kwargs = config.get("model_kwargs", {})
 
-    weight = torch.tensor([pos_weight])
-    loss_fn = torch.nn.BCEWithLogitsLoss(pos_weight=weight)
+
+    loss_fn = torch.nn.CrossEntropyLoss(
+        weight=torch.tensor([1.0, pos_weight], dtype=torch.float32)
+    )
+
     metrics = [APScoreBinary()]
 
     callbacks = [
@@ -51,12 +55,13 @@ def train_deep_classifier(
         metrics=metrics,
         cbs=callbacks,
         shuffle_train=True,
+        verbose=False,
+        num_workers=0,
+        vocab=[0, 1],
     )
 
     clf.fit(epochs)
-
-    clf.learner.load("best")
-
+    clf.load("best")
     return clf
 
 def train_tree_classifier(

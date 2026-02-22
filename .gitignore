@@ -211,4 +211,5 @@ artifacts/
 wandb/
 
 experiments/baseline/wandb_sweep_baseline/
+experiments/baseline/wandb_sweep_baseline2/
 
