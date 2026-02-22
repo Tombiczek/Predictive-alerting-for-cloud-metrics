@@ -1,9 +1,9 @@
 import argparse
 import os
 
+import wandb
 from dotenv import load_dotenv
 
-import wandb
 from src.data.datasets import load_features_dataset
 from src.evaluate import predict_proba_sklearn, pick_threshold
 from src.train import train_tree_classifier
@@ -67,7 +67,6 @@ def run_sweep_trial():
         probs_val=val_probs,
         incident_windows_by_series=incident_windows_by_series,
         horizon_steps=HORIZON,
-        step_seconds=300,
     )
     val_alert_score = best["incident_recall"] - 0.01 * best["false_alerts_per_day"]
 

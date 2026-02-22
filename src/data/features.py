@@ -5,7 +5,7 @@ def extract_features(X_windows: np.ndarray) -> np.ndarray:
     """
     Convert raw sliding windows (N, 1, W) to tabular features (N, n_features).
     """
-    X = X_windows[:, 0, :]  # (N, W)
+    X = X_windows[:, 0, :]
     return np.column_stack([
         X.mean(axis=1),
         X.std(axis=1),

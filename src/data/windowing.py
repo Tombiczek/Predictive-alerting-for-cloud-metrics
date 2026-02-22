@@ -8,18 +8,10 @@ def make_sliding_windows(
     horizon: int
 ):
     """
-    Build sliding-window samples for binary event within horizon prediction
-    based on point anomaly timestamps
-
     Label definition for each window ending at t:
-    - y=1 if there exists an event index e such that:
-        t + 1 <= e <= t + horizon AND the history window does not contain an event:
-        events[i : i + window_size].any() == False
-    - y=0 otherwise.
-
-    Returns:
-    - X: array of shape (n_samples, 1, window_size)
-    - y: array of shape (n_samples,) with binary labels
+    - history: [t-window_size+1, t]
+    - y=1 if any incident start in (t, t+horizon]
+    - skip if history overlaps incident
     """
     x_samples = []
     y_samples = []

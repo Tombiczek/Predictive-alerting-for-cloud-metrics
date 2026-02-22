@@ -6,7 +6,7 @@ import wandb
 from dotenv import load_dotenv
 
 from src.data.datasets import load_timeseries_dataset
-from src.evaluate import evaluate_model, predict_proba_tsai
+from src.evaluate import alerting_eval, pick_threshold, predict_proba_tsai
 from src.train import train_deep_classifier
 
 load_dotenv()
@@ -19,20 +19,20 @@ ARTIFACTS_DIR.mkdir(exist_ok=True)
 WINDOW_SIZE = 24
 HORIZON = 12
 
-# Model configuration
+# Configuration taken from wandb sweep
 CONFIG = {
     "model_name": "InceptionTimePlus",
     "window_size": WINDOW_SIZE,
     "horizon": HORIZON,
-    "batch_size": wandb.config.batch_size,
-    "learning_rate": wandb.config.learning_rate,
-    "epochs": wandb.config.epochs,
-    "patience": wandb.config.patience,
-    "pos_weight": wandb.config.pos_weight,
+    "batch_size": 64,
+    "learning_rate": 1e-3,
+    "epochs": 50,
+    "patience": 10,
+    "pos_weight": 6.0,
     "model_kwargs": {
-        "nf": wandb.config.nf,
-        "depth": wandb.config.depth,
-        "ks": wandb.config.ks,
+        "nf": 32,
+        "depth": 6,
+        "ks": 23,
     },
 }
 
@@ -48,22 +48,39 @@ def main():
     data = load_timeseries_dataset(WINDOW_SIZE, HORIZON)
     X_train, y_train = data["X_train"], data["y_train"]
     X_val, y_val = data["X_val"], data["y_val"]
-    X_test, y_test = data["X_test"], data["y_test"]
+    X_test = data["X_test"]
+
+    meta_val = data["meta_val"]
+    meta_test = data["meta_test"]
+    incident_windows = data["incident_windows_by_series"]
 
     print("\nTraining model...")
     model = train_deep_classifier(X_train, y_train, X_val, y_val, CONFIG)
 
     print("\nEvaluating on validation set...")
     val_probs = predict_proba_tsai(model, X_val)
-    val_metrics = evaluate_model(y_val, val_probs, prefix="val")
+    val_metrics = pick_threshold(
+        meta_val=meta_val,
+        probs_val=val_probs,
+        incident_windows_by_series=incident_windows,
+        horizon_steps=HORIZON,
+    )
+
+    best_threshold = val_metrics["threshold"]
 
     print("\nEvaluating on test set...")
     test_probs = predict_proba_tsai(model, X_test)
-    test_metrics = evaluate_model(y_test, test_probs, prefix="test", threshold=val_metrics["threshold"])
+    test_metrics = alerting_eval(
+        meta_df=meta_test,
+        y_probs=test_probs,
+        incident_windows_by_series=incident_windows,
+        threshold=best_threshold,
+        horizon_steps=HORIZON,
+    )
 
     wandb.log({
-        **val_metrics,
-        **test_metrics
+        **{f"val_{k}": v for k, v in val_metrics.items()},
+        **{f"test_{k}": v for k, v in test_metrics.items()},
     })
 
     model_path = ARTIFACTS_DIR / "icp_best.pkl"

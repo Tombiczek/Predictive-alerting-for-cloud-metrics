@@ -36,7 +36,6 @@ def alerting_eval(
     incident_windows_by_series: dict[str, list[tuple[pd.Timestamp, pd.Timestamp]]],
     threshold: float,
     horizon_steps: int,
-    step_seconds: int = 300,
 ) -> dict:
     """
     Simple alerting evaluation:
@@ -51,7 +50,7 @@ def alerting_eval(
     meta["prob"] = y_probs
     meta["alert"] = (y_probs >= threshold).astype(int)
 
-    warning_seconds = horizon_steps * step_seconds
+    warning_seconds = horizon_steps * 300
 
     total_incidents = 0
     caught = 0
@@ -72,12 +71,12 @@ def alerting_eval(
 
         # Precompute warning intervals for this series
         warning_intervals = []
-        for start, end in windows:
+        for start, _ in windows:
             warn_start = start - pd.Timedelta(seconds=warning_seconds)
             warning_intervals.append((warn_start, start))  # [warn_start, start)
 
         # Incident recall + lead time
-        for start, end in windows:
+        for start, _ in windows:
             total_incidents += 1
             warn_start = start - pd.Timedelta(seconds=warning_seconds)
 
@@ -117,9 +116,9 @@ def pick_threshold(
     probs_val: np.ndarray,
     incident_windows_by_series: dict,
     horizon_steps: int,
-    step_seconds: int = 300,
 ):
-    thresholds = [0.01, 0.02, 0.05, 0.1]  # keep it simple
+
+    thresholds = [0.01, 0.02, 0.05, 0.1]
     best = None
 
     for thr in thresholds:
@@ -129,7 +128,6 @@ def pick_threshold(
             incident_windows_by_series=incident_windows_by_series,
             threshold=thr,
             horizon_steps=horizon_steps,
-            step_seconds=step_seconds,
         )
 
         # prioritize recall, then fewer false alerts
@@ -142,4 +140,3 @@ def pick_threshold(
                 best = m
 
     return best
-

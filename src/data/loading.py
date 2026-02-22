@@ -5,9 +5,7 @@ import pandas as pd
 
 
 def load_incident_windows(labels_path: Path) -> dict[str, list[tuple[pd.Timestamp, pd.Timestamp]]]:
-    """Load incident time windows from NAB's combined_windows.json format."""
     raw = json.loads(labels_path.read_text())
-
     result = {}
     for series_id, intervals in raw.items():
         windows = [(pd.Timestamp(start), pd.Timestamp(end)) for start, end in intervals]
