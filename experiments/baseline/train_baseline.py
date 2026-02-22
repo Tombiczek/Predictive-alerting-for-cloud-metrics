@@ -2,9 +2,9 @@ import os
 import pickle
 from pathlib import Path
 
+import wandb
 from dotenv import load_dotenv
 
-import wandb
 from src.data.datasets import load_features_dataset
 from src.evaluate import alerting_eval, pick_threshold, predict_proba_sklearn
 from src.train import train_tree_classifier
@@ -16,24 +16,24 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 ARTIFACTS_DIR = REPO_ROOT / "artifacts"
 ARTIFACTS_DIR.mkdir(exist_ok=True)
 
-WINDOW_SIZE = 24
+WINDOW_SIZE = 12
 HORIZON = 12
 
 # Configuration taken from wandb sweep
 CONFIG = {
     "model_name": "RandomForest",
-    "window_size": 24,
+    "window_size": 12,
     "horizon": 12,
-    "n_estimators": 100,
-    "criterion": "gini",
+    "n_estimators": 300,
+    "criterion": "entropy",
     "max_features": "sqrt",
     "max_depth": 50,
     "max_leaf_nodes": 1000,
     "min_samples_split": 2,
     "min_samples_leaf": 2,
     "min_impurity_decrease": 0.0,
-    "ccp_alpha": 0.0001,
-    "bootstrap": False,
+    "ccp_alpha": 0.0,
+    "bootstrap": True,
     "class_weight": "balanced",
 }
 
