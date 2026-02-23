@@ -45,4 +45,3 @@ def test_make_sliding_windows_returns_empty_structures_when_no_valid_samples() -
     assert y.dtype == np.int8
     assert y.size == 0
     assert meta.empty
-

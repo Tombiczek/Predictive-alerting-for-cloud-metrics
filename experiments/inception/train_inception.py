@@ -42,7 +42,7 @@ def main():
         entity="tombik-warsaw-university-of-technology",
         project="Predictive-alerting-for-cloud-metrics",
         config=CONFIG,
-        name="ict_best"
+        name="ict_best",
     )
 
     data = load_timeseries_dataset(WINDOW_SIZE, HORIZON)
@@ -78,10 +78,12 @@ def main():
         horizon_steps=HORIZON,
     )
 
-    wandb.log({
-        **{f"val_{k}": v for k, v in val_metrics.items()},
-        **{f"test_{k}": v for k, v in test_metrics.items()},
-    })
+    wandb.log(
+        {
+            **{f"val_{k}": v for k, v in val_metrics.items()},
+            **{f"test_{k}": v for k, v in test_metrics.items()},
+        }
+    )
 
     model_path = ARTIFACTS_DIR / "icp_best.pkl"
     with open(model_path, "wb") as f:

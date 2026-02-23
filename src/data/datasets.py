@@ -54,11 +54,16 @@ def load_timeseries_dataset(window_size: int, horizon: int) -> dict[str, Any]:
     incident_windows_by_series = load_incident_windows(LABELS_PATH)
 
     return {
-        "X_train": X_train, "y_train": y_train,
-        "X_val": X_val, "y_val": y_val,
-        "X_test": X_test, "y_test": y_test,
-        "meta_train": meta_train, "meta_val": meta_val,
-        "meta_test": meta_test, "incident_windows_by_series": incident_windows_by_series
+        "X_train": X_train,
+        "y_train": y_train,
+        "X_val": X_val,
+        "y_val": y_val,
+        "X_test": X_test,
+        "y_test": y_test,
+        "meta_train": meta_train,
+        "meta_val": meta_val,
+        "meta_test": meta_test,
+        "incident_windows_by_series": incident_windows_by_series,
     }
 
 
@@ -82,9 +87,14 @@ def load_features_dataset(window_size: int, horizon: int) -> dict[str, Any]:
     incident_windows_by_series = load_incident_windows(LABELS_PATH)
 
     return {
-        "X_train": X_train, "y_train": y_train,
-        "X_val": X_val, "y_val": y_val,
-        "X_test": X_test, "y_test": y_test,
-        "meta_train": meta_train, "meta_val": meta_val,
-        "meta_test": meta_test, "incident_windows_by_series": incident_windows_by_series
+        "X_train": X_train,
+        "y_train": y_train,
+        "X_val": X_val,
+        "y_val": y_val,
+        "X_test": X_test,
+        "y_test": y_test,
+        "meta_train": meta_train,
+        "meta_val": meta_val,
+        "meta_test": meta_test,
+        "incident_windows_by_series": incident_windows_by_series,
     }

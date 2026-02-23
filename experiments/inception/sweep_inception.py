@@ -41,10 +41,11 @@ X_train, y_train = data["X_train"], data["y_train"]
 X_val, y_val = data["X_val"], data["y_val"]
 X_test, y_test = data["X_test"], data["y_test"]
 
+
 def run_sweep_trial():
     wandb.init(
         entity="tombik-warsaw-university-of-technology",
-        project="Predictive-alerting-for-cloud-metrics"
+        project="Predictive-alerting-for-cloud-metrics",
     )
 
     config = {
@@ -70,17 +71,13 @@ def run_sweep_trial():
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--count",
-        type=int,
-        default=20
-    )
+    parser.add_argument("--count", type=int, default=20)
     args = parser.parse_args()
 
     sweep_id = wandb.sweep(
         sweep_configuration,
         entity="tombik-warsaw-university-of-technology",
-        project="Predictive-alerting-for-cloud-metrics"
+        project="Predictive-alerting-for-cloud-metrics",
     )
     print(f"Created sweep: {sweep_id}")
 

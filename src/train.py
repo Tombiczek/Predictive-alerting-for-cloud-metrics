@@ -30,10 +30,7 @@ def train_deep_classifier(
     pos_weight = float(config.get("pos_weight", 1.0))
     model_kwargs = config.get("model_kwargs", {})
 
-
-    loss_fn = torch.nn.CrossEntropyLoss(
-        weight=torch.tensor([1.0, pos_weight], dtype=torch.float32)
-    )
+    loss_fn = torch.nn.CrossEntropyLoss(weight=torch.tensor([1.0, pos_weight], dtype=torch.float32))
 
     metrics = [APScoreBinary()]
 
@@ -63,6 +60,7 @@ def train_deep_classifier(
     clf.fit(epochs)
     clf.load("best")
     return clf
+
 
 def train_tree_classifier(
     X_train: np.ndarray,

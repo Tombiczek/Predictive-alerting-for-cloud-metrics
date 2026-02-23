@@ -73,4 +73,3 @@ def test_extract_features_builds_expected_feature_vector() -> None:
     expected_second = np.array([2.0, 0.0, 2.0, 2.0, 0.0, 2.0, 2.0, 0.0, 2.0, 0.0])
     np.testing.assert_allclose(result[0], expected_first, atol=1e-7)
     np.testing.assert_allclose(result[1], expected_second, atol=1e-7)
-

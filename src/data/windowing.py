@@ -2,11 +2,7 @@ import numpy as np
 import pandas as pd
 
 
-def make_sliding_windows(
-    dataset: pd.DataFrame,
-    window_size: int,
-    horizon: int
-):
+def make_sliding_windows(dataset: pd.DataFrame, window_size: int, horizon: int):
     """
     Label definition for each window ending at t:
     - history: [t-window_size+1, t]
@@ -46,11 +42,13 @@ def make_sliding_windows(
 
             x_samples.append(x)
             y_samples.append(y)
-            meta.append({
-                "series_id": series_id,
-                "t_end_idx": t,
-                "t_end_ts": pd.Timestamp(ts[t]),
-            })
+            meta.append(
+                {
+                    "series_id": series_id,
+                    "t_end_idx": t,
+                    "t_end_ts": pd.Timestamp(ts[t]),
+                }
+            )
 
     X = np.stack(x_samples) if x_samples else np.empty((0, 1, window_size))
     y = np.array(y_samples, dtype=np.int8)

@@ -38,6 +38,7 @@ X_val, y_val = data["X_val"], data["y_val"]
 meta_val = data["meta_val"]
 incident_windows_by_series = data["incident_windows_by_series"]
 
+
 def run_sweep_trial():
     wandb.init()
 
@@ -70,15 +71,17 @@ def run_sweep_trial():
     )
     val_alert_score = best["incident_recall"] - 0.01 * best["false_alerts_per_day"]
 
-    wandb.log({
-        "val_incident_recall": best["incident_recall"],
-        "val_false_alerts_per_day": best["false_alerts_per_day"],
-        "val_alert_score": val_alert_score,
-        "val_threshold": best["threshold"],
-        "val_incidents_total": best["incidents_total"],
-        "val_incidents_caught": best["incidents_caught"],
-        "val_lead_time_median_min": best.get("lead_time_median_min"),
-    })
+    wandb.log(
+        {
+            "val_incident_recall": best["incident_recall"],
+            "val_false_alerts_per_day": best["false_alerts_per_day"],
+            "val_alert_score": val_alert_score,
+            "val_threshold": best["threshold"],
+            "val_incidents_total": best["incidents_total"],
+            "val_incidents_caught": best["incidents_caught"],
+            "val_lead_time_median_min": best.get("lead_time_median_min"),
+        }
+    )
 
     wandb.finish()
 
@@ -95,7 +98,7 @@ if __name__ == "__main__":
     sweep_id = wandb.sweep(
         sweep_configuration,
         entity="tombik-warsaw-university-of-technology",
-        project="Predictive-alerting-for-cloud-metrics"
+        project="Predictive-alerting-for-cloud-metrics",
     )
     print(f"Created sweep: {sweep_id}")
 

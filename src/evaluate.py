@@ -13,13 +13,12 @@ def predict_proba_tsai(clf, X: np.ndarray, batch_size: int = 512) -> np.ndarray:
 
     with torch.no_grad():
         for i in range(0, len(X), batch_size):
-            xb = torch.tensor(X[i:i+batch_size], dtype=torch.float32, device=device)
+            xb = torch.tensor(X[i : i + batch_size], dtype=torch.float32, device=device)
             logits = model(xb)
             probs1 = torch.nn.functional.softmax(logits, dim=1)[:, 1]
             probs_all.append(probs1.cpu().numpy())
 
     return np.concatenate(probs_all, axis=0)
-
 
 
 def predict_proba_sklearn(clf, X: np.ndarray) -> np.ndarray:
@@ -93,6 +92,7 @@ def alerting_eval(
         "false_alerts_per_day": false_per_day,
     }
 
+
 def pick_threshold(
     meta_val: pd.DataFrame,
     probs_val: np.ndarray,
@@ -117,8 +117,8 @@ def pick_threshold(
             best = metrics
         else:
             if (metrics["incident_recall"] > best["incident_recall"]) or (
-                metrics["incident_recall"] == best["incident_recall"] and
-                metrics["false_alerts_per_day"] < best["false_alerts_per_day"]
+                metrics["incident_recall"] == best["incident_recall"]
+                and metrics["false_alerts_per_day"] < best["false_alerts_per_day"]
             ):
                 best = metrics
 

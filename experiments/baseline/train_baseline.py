@@ -43,13 +43,13 @@ def main():
         entity="tombik-warsaw-university-of-technology",
         project="Predictive-alerting-for-cloud-metrics",
         config=CONFIG,
-        name="rf_best_2"
+        name="rf_best_2",
     )
 
     data = load_features_dataset(WINDOW_SIZE, HORIZON)
     X_train, y_train = data["X_train"], data["y_train"]
-    X_val, y_val = data["X_val"], data["y_val"]
-    X_test, y_test = data["X_test"], data["y_test"]
+    X_val = data["X_val"]
+    X_test = data["X_test"]
 
     meta_val = data["meta_val"]
     meta_test = data["meta_test"]
@@ -79,10 +79,12 @@ def main():
         horizon_steps=HORIZON,
     )
 
-    wandb.log({
-        **{f"val_{k}": v for k, v in val_metrics.items()},
-        **{f"test_{k}": v for k, v in test_metrics.items()},
-    })
+    wandb.log(
+        {
+            **{f"val_{k}": v for k, v in val_metrics.items()},
+            **{f"test_{k}": v for k, v in test_metrics.items()},
+        }
+    )
 
     model_path = ARTIFACTS_DIR / "rf_best_2.pkl"
     with open(model_path, "wb") as f:
