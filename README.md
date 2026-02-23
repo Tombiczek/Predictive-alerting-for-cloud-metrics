@@ -167,8 +167,19 @@ uv run python experiments/inception/train_inception.py
   <img src="figures/IncpetionTimePlus_valid_loss.png" width="700" alt="">
 </p>
 
-Due to extreme class imbalance and weak early signal observed during sanity checks, I did not run a full hyperparameter sweep for the deep-learning branch. 
-Preliminary notebook experiments indicated that validation behavior was close to random ranking, so I prioritized further investigation of labeling strategy and threshold behavior.
+The validation loss curve shown above does not exhibit a clear downward trend. After an initial drop, the loss fluctuates without stabilizing at a lower level. 
+This behavior is consistent with a model that does not discover a strong predictive signal and instead oscillates around a weak local optimum.
+
+During sanity checks, I also monitored average precision. Across multiple horizon sizes, AP consistently stayed very close to the positive class ratio. 
+For example, when the positive class represented approximately 0.1% of samples, AP was also around 0.1%. Increasing the horizon slightly changed the class balance, 
+and AP moved accordingly but always remained near the baseline implied by random ranking.
+
+This pattern strongly suggests that the model was not extracting meaningful pre-incident structure from the raw sequences. 
+Instead, it behaved like a near-random scorer under extreme class imbalance.
+
+Because of this, and given limited time, I decided not to run a large hyperparameter sweep for the deep-learning branch. 
+The early experiments indicated that the bottleneck was likely not architecture complexity but rather signal availability and labeling structure. 
+I therefore shifted focus toward refining the target definition and evaluation methodology.
 
 Saved artifacts are written to `artifacts/`.
 
