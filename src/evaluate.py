@@ -15,10 +15,6 @@ def predict_proba_tsai(clf, X: np.ndarray, batch_size: int = 512) -> np.ndarray:
         for i in range(0, len(X), batch_size):
             xb = torch.tensor(X[i:i+batch_size], dtype=torch.float32, device=device)
             logits = model(xb)
-
-            if logits.ndim != 2 or logits.shape[1] != 2:
-                raise ValueError(f"Expected logits shape [B, 2], got {tuple(logits.shape)}")
-
             probs1 = torch.nn.functional.softmax(logits, dim=1)[:, 1]
             probs_all.append(probs1.cpu().numpy())
 
@@ -42,15 +38,13 @@ def alerting_eval(
     - incident_recall: fraction of incidents that had >=1 alert before start
     - lead_time_median_min: median minutes before incident start
     - false_alerts_per_day: alerts not in any warning window
-
-    Warning window: [start - H*step, start)
     """
     meta = meta_df.copy()
     meta["t_end_ts"] = pd.to_datetime(meta["t_end_ts"])
     meta["prob"] = y_probs
     meta["alert"] = (y_probs >= threshold).astype(int)
 
-    warning_seconds = horizon_steps * 300
+    horizon_length = horizon_steps * 300
 
     total_incidents = 0
     caught = 0
@@ -59,48 +53,36 @@ def alerting_eval(
     false_alerts = 0
     total_days = 0.0
 
-    for series_id, g in meta.groupby("series_id", sort=False):
-        g = g.sort_values("t_end_ts")
-        windows = incident_windows_by_series.get(series_id, [])
-        if not windows:
-            continue
+    for series_id, events in meta.groupby("series_id", sort=False):
+        events = events.sort_values("t_end_ts")
+        windows = incident_windows_by_series[series_id]
+        alert_times = events.loc[events["alert"] == 1, "t_end_ts"].tolist()
 
-        # For false alerts/day
-        t0, t1 = g["t_end_ts"].min(), g["t_end_ts"].max()
+        # Calculate day span
+        t0, t1 = events["t_end_ts"].min(), events["t_end_ts"].max()
         total_days += max((t1 - t0).total_seconds(), 0.0) / 86400.0
 
-        # Precompute warning intervals for this series
-        warning_intervals = []
-        for start, _ in windows:
-            warn_start = start - pd.Timedelta(seconds=warning_seconds)
-            warning_intervals.append((warn_start, start))  # [warn_start, start)
-
-        # Incident recall + lead time
-        for start, _ in windows:
+        covered_alert_times = set()
+        for start, end in windows:
             total_incidents += 1
-            warn_start = start - pd.Timedelta(seconds=warning_seconds)
+            warn_start = start - pd.Timedelta(seconds=horizon_length)
 
-            pre_alerts = g[(g["alert"] == 1) & (g["t_end_ts"] >= warn_start) & (g["t_end_ts"] < start)]
-            if not pre_alerts.empty:
+            pre_alerts = [t for t in alert_times if warn_start <= t < start]
+            if pre_alerts:
                 caught += 1
-                first_alert_time = pre_alerts["t_end_ts"].iloc[0]
-                lead_times_sec.append((start - first_alert_time).total_seconds())
+                # The first alert for this incident
+                lead_times_sec.append((start - pre_alerts[0]).total_seconds())
 
-        # False alerts: alert not in ANY warning interval (and not inside incident)
-        alert_times = g.loc[g["alert"] == 1, "t_end_ts"].tolist()
-        for t in alert_times:
-            in_warning = any(ws <= t < we for (ws, we) in warning_intervals)
-            in_incident = any(start <= t <= end for (start, end) in windows)
-            if (not in_warning) and (not in_incident):
-                false_alerts += 1
+            for t in alert_times:
+                # I also check if the model fired late
+                if warn_start <= t < start or start <= t <= end:
+                    covered_alert_times.add(t)
+
+        false_alerts += sum(t not in covered_alert_times for t in alert_times)
 
     incident_recall = caught / total_incidents if total_incidents else 0.0
     false_per_day = false_alerts / total_days if total_days > 0 else 0.0
-
-    if lead_times_sec:
-        lead_median_min = np.median(lead_times_sec) / 60.0
-    else:
-        lead_median_min = None
+    lead_median_min = np.median(lead_times_sec) / 60.0 if lead_times_sec else None
 
     return {
         "threshold": threshold,
@@ -122,7 +104,7 @@ def pick_threshold(
     best = None
 
     for thr in thresholds:
-        m = alerting_eval(
+        metrics = alerting_eval(
             meta_df=meta_val,
             y_probs=probs_val,
             incident_windows_by_series=incident_windows_by_series,
@@ -132,11 +114,12 @@ def pick_threshold(
 
         # prioritize recall, then fewer false alerts
         if best is None:
-            best = m
+            best = metrics
         else:
-            if (m["incident_recall"] > best["incident_recall"]) or (
-                m["incident_recall"] == best["incident_recall"] and m["false_alerts_per_day"] < best["false_alerts_per_day"]
+            if (metrics["incident_recall"] > best["incident_recall"]) or (
+                metrics["incident_recall"] == best["incident_recall"] and
+                metrics["false_alerts_per_day"] < best["false_alerts_per_day"]
             ):
-                best = m
+                best = metrics
 
     return best

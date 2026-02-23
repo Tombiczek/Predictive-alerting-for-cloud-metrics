@@ -24,25 +24,24 @@ def make_sliding_windows(
         labels = series_df["is_incident"].to_numpy()
         ts = series_df["timestamp"].to_numpy()
 
-        start = np.zeros_like(labels)
-        start[0] = labels[0]
-        start[1:] = (labels[1:] == 1) & (labels[:-1] == 0)
+        incident_start = np.zeros_like(labels)
+        incident_start[0] = labels[0]
+        incident_start[1:] = (labels[1:] == 1) & (labels[:-1] == 0)
 
-        unsafe = labels.astype(bool)
+        in_incident = labels.astype(bool)
 
-        n = len(series_df)
-        for t in range(window_size - 1, n - horizon):
+        for t in range(window_size - 1, len(series_df) - horizon):
             history_start = t - window_size + 1
             history_end_exclusive = t + 1
 
             # We keep only clean pre incident history windows
-            if unsafe[history_start:history_end_exclusive].any():
+            if in_incident[history_start:history_end_exclusive].any():
                 continue
 
             future_start = t + 1
             future_end_exclusive = t + horizon + 1
 
-            y = int(start[future_start:future_end_exclusive].any())
+            y = int(incident_start[future_start:future_end_exclusive].any())
             x = values[history_start:history_end_exclusive].reshape(1, -1)
 
             x_samples.append(x)
