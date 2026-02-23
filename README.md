@@ -6,17 +6,28 @@
 ![Linting](https://img.shields.io/badge/Linting-ruff-000000)
 ## Table of Contents
 - [Description](#description)
-  - [Example Time Series with Incident Intervals](#Example Time Series with Incident Intervals)
-- [Badges](#badges)
+  - [Example Time Series with Incident Intervals](#example-time-series-with-incident-intervals)
 - [Installation](#installation)
+- [Development Workflow](#development-workflow)
 - [Usage](#usage)
+  - [RandomForest Baseline](#randomforest-baseline)
+  - [InceptionTimePlus (Sequence Model)](#inceptiontimeplus-sequence-model)
 - [Design Choices and Thought Process](#design-choices-and-thought-process)
+  - [1. Initial Formulation and Failure Mode](#1-initial-formulation-and-failure-mode)
+  - [2. Corrected Target: Incident Starts Only](#2-corrected-target-incident-starts-only)
+  - [3. Sequence Modeling Attempt](#3-sequence-modeling-attempt)
+  - [4. Main Insight](#4-main-insight)
+  - [5. Limitations](#5-limitations)
+  - [6. Future Directions](#6-future-directions)
+- [Final Reflection](#final-reflection)
 
 ## Description
 
-This repository contains an end-to-end prototype of a predictive alerting system for cloud service metrics. The objective is to estimate whether an incident **start** will occur within the next `H` time steps, based on the previous `W` observations of a metric time series.
+This repository contains an end-to-end prototype of a predictive alerting system for cloud service metrics. 
+The objective is to estimate whether an incident **start** will occur within the next `H` time steps, based on the previous `W` observations of a metric time series.
 
-The experiments are conducted on the NAB AWS CloudWatch subset. Each time series is processed independently. Windows are generated using a sliding-window formulation, and the model outputs a probability score that is converted into alerts using a validation-derived threshold.
+The experiments are conducted on the [NAB](https://github.com/numenta/NAB) AWS CloudWatch subset. Each time series is processed independently. 
+Windows are generated using a sliding-window formulation, and the model outputs a probability score that is converted into alerts using a validation-derived threshold.
 
 Two modeling paths are implemented:
 
@@ -50,16 +61,13 @@ The figure below shows a representative example from the test set. The blue curv
   <img src="figures/rds_cpu.png" width="850" alt="">
 </p>
 
-Several important characteristics are visible:
+Looking at the plot, a few things stand out immediately. Most of the time the system stays in long, relatively calm periods with small fluctuations. 
+When incidents happen, the transition is often sudden rather than gradual. 
+In many cases, there is no clear upward or downward trend that would signal that something is about to break. 
+The series also shows occasional spikes that are not followed by incidents, which makes simple threshold-based reasoning unreliable.
 
-* Long stable regimes with small fluctuations
-* Abrupt transitions into incident states
-* No clear monotonic trend or gradual drift preceding most incidents
-* Heavy-tailed behavior with occasional spikes unrelated to incidents
-
-In many cases, there is no visually obvious early-warning pattern before the incident start. This observation is consistent with the experimental results: forecasting the start of instability remains very hard.
-
-The example comes from the test set and is shown for illustration purposes only. It demonstrates the structural difficulty of extracting predictive signal from single-metric data.
+The example comes from the test set and is shown for illustration purposes only. 
+It demonstrates the structural difficulty of extracting predictive signal from single-metric data.
 
 ## Installation
 
@@ -136,7 +144,6 @@ uv run python experiments/baseline/train_baseline.py
 The sweep explores tree depth, number of estimators, and regularization parameters. Threshold selection is performed after training, based on validation performance.
 
 
-
 ### InceptionTimePlus (Sequence Model)
 
 For the sequence branch, I trained InceptionTimePlus directly on raw sliding windows.
@@ -149,7 +156,8 @@ uv run python experiments/inception/train_inception.py
   <img src="figures/IncpetionTimePlus_valid_loss.png" width="700" alt="">
 </p>
 
-Due to extreme class imbalance and weak early signal observed during sanity checks, I did not run a full hyperparameter sweep for the deep-learning branch. Preliminary notebook experiments indicated that validation behavior was close to random ranking, so I prioritized further investigation of labeling strategy and threshold behavior.
+Due to extreme class imbalance and weak early signal observed during sanity checks, I did not run a full hyperparameter sweep for the deep-learning branch. 
+Preliminary notebook experiments indicated that validation behavior was close to random ranking, so I prioritized further investigation of labeling strategy and threshold behavior.
 
 Saved artifacts are written to `artifacts/`.
 
@@ -161,9 +169,10 @@ Saved artifacts are written to `artifacts/`.
 
 My first label definition marked a window positive if **any incident timestamp appeared in the future horizon**.
 
-This seemed reasonable at first, but it introduced a subtle issue: many positive samples came from windows where the system was already inside an incident. As a result, the task effectively became *“detect that I am already failing”* rather than *“predict that I will fail soon.”*
+This seemed reasonable at first, but it introduced a subtle issue: many positive samples came from windows where the system was already inside an incident. 
+As a result, the task effectively became *“detect that I am already failing”* rather than *“predict that I will fail soon.”*
 
-This flaw manifested clearly in the results:
+The issue became clear when I compared training and validation performance:
 
 * Train AP ≈ 0.95
 * Validation AP ≈ 0.15–0.16
@@ -175,8 +184,6 @@ This strongly suggested that either:
 
 * early-warning signal is extremely weak, or
 * the problem formulation was incorrect.
-
-
 
 ### 2. Corrected Target: Incident Starts Only
 
@@ -205,15 +212,14 @@ Best RandomForest test results:
 
 While recall is modest, alerts are meaningfully early.
 
-
-
 ### 3. Sequence Modeling Attempt
 
 To verify that no temporal pattern was hidden from tabular features, I trained InceptionTimePlus on raw ordered windows.
 
 Dataset characteristics:
 
-* Extremely imbalanced (positive ratio ≈ 0.1–0.2%)
+* Window of length 144 timestamps, horizon 12 timestamps
+* Extremely imbalanced (positive ratio ≈ 0.5% on a validation split)
 * Long stable regimes
 
 Observed results:
@@ -223,8 +229,6 @@ Observed results:
 * False alerts per day exceeding 170+
 
 This confirmed that the core limitation is not simply feature engineering. Under current formulation, the early-warning signal appears weak and highly series-specific.
-
-
 
 ### 4. Main Insight
 
