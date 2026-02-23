@@ -6,6 +6,7 @@
 ![Linting](https://img.shields.io/badge/Linting-ruff-000000)
 ## Table of Contents
 - [Description](#description)
+  - [Example Time Series with Incident Intervals](#Example Time Series with Incident Intervals)
 - [Badges](#badges)
 - [Installation](#installation)
 - [Usage](#usage)
@@ -36,6 +37,29 @@ This framing reflects operational reality: catching incidents early is useful on
 W&B project:
 [Predictive-alerting-for-cloud-metrics](https://wandb.ai/tombik-warsaw-university-of-technology/Predictive-alerting-for-cloud-metrics)
 
+### Example Time Series with Incident Intervals
+The figure below shows a representative example from the test set. The blue curve represents the metric value over time, while shaded regions correspond to incident intervals.
+
+<p>
+  <img src="figures/cpu_util_figure.png" width="850" alt="">
+</p>
+<p>
+  <img src="figures/grok_asg.png" width="850" alt="">
+</p>
+<p>
+  <img src="figures/rds_cpu.png" width="850" alt="">
+</p>
+
+Several important characteristics are visible:
+
+* Long stable regimes with small fluctuations
+* Abrupt transitions into incident states
+* No clear monotonic trend or gradual drift preceding most incidents
+* Heavy-tailed behavior with occasional spikes unrelated to incidents
+
+In many cases, there is no visually obvious early-warning pattern before the incident start. This observation is consistent with the experimental results: forecasting the start of instability remains very hard.
+
+The example comes from the test set and is shown for illustration purposes only. It demonstrates the structural difficulty of extracting predictive signal from single-metric data.
 
 ## Installation
 
@@ -105,13 +129,13 @@ Train the final model:
 uv run python experiments/baseline/train_baseline.py
 ```
 
-<p align="center">
-  <img src="figures/rf_sweep.png" width="700">
+<p>
+  <img src="figures/rf_sweep.png" width="700" alt="">
 </p>
 
 The sweep explores tree depth, number of estimators, and regularization parameters. Threshold selection is performed after training, based on validation performance.
 
----
+
 
 ### InceptionTimePlus (Sequence Model)
 
@@ -121,15 +145,15 @@ For the sequence branch, I trained InceptionTimePlus directly on raw sliding win
 uv run python experiments/inception/train_inception.py
 ```
 
-<p align="center">
-  <img src="figures/IncpetionTimePlus_train_loss.png" width="700">
+<p>
+  <img src="figures/IncpetionTimePlus_valid_loss.png" width="700" alt="">
 </p>
 
 Due to extreme class imbalance and weak early signal observed during sanity checks, I did not run a full hyperparameter sweep for the deep-learning branch. Preliminary notebook experiments indicated that validation behavior was close to random ranking, so I prioritized further investigation of labeling strategy and threshold behavior.
 
 Saved artifacts are written to `artifacts/`.
 
----
+
 
 ## Design Choices and Thought Process
 
@@ -152,7 +176,7 @@ This strongly suggested that either:
 * early-warning signal is extremely weak, or
 * the problem formulation was incorrect.
 
----
+
 
 ### 2. Corrected Target: Incident Starts Only
 
@@ -181,7 +205,7 @@ Best RandomForest test results:
 
 While recall is modest, alerts are meaningfully early.
 
----
+
 
 ### 3. Sequence Modeling Attempt
 
@@ -191,7 +215,6 @@ Dataset characteristics:
 
 * Extremely imbalanced (positive ratio ≈ 0.1–0.2%)
 * Long stable regimes
-* Abrupt transitions
 
 Observed results:
 
@@ -201,54 +224,36 @@ Observed results:
 
 This confirmed that the core limitation is not simply feature engineering. Under current formulation, the early-warning signal appears weak and highly series-specific.
 
----
+
 
 ### 4. Main Insight
 
-The most important observation from this project is:
-
-> Model complexity does not compensate for weak or poorly structured predictive signal.
+The most important observation from this project is that model complexity does not compensate for weak predictive signal.
 
 Tree ensembles and deep sequence models behaved similarly. When recall increased, alert spam exploded. When false alerts were controlled, recall dropped.
 
-The real challenge lies in:
-
-* signal quality,
-* label definition,
-* and evaluation design.
-
----
+The real challenge lies mostly in signal quality, label definition and evaluation design
 
 ### 5. Limitations
 
 * Single-metric modeling per series
 * No cross-metric correlation modeling
-* No regime detection
 * Extreme class imbalance
 * Limited time for deep-learning hyperparameter exploration
-
----
 
 ### 6. Future Directions
 
 The most promising next steps are:
 
 1. Incorporate multi-metric context per service.
-2. Perform strict time-based cross-validation.
-3. Explore service-specific threshold calibration.
-4. Revisit sequence modeling after stabilizing data representation.
-5. Investigate probabilistic forecasting approaches instead of binary classification.
+2. Explore service-specific threshold calibration.
+3. Revisit sequence modeling after stabilizing extremely low positive class ratio.
 
----
 
 ## Final Reflection
 
-This project evolved from a standard classification attempt into a deeper investigation of problem formulation.
+This project did not evolve the way I initially expected. I started with a straightforward classification setup and assumed that, with enough tuning, the model would learn a useful early-warning signal. That did not happen.
 
-The most valuable outcome was not achieving high recall, but understanding *why* performance collapses under realistic constraints. The experiments demonstrate that:
+Instead, most of the progress came from realizing that the problem formulation itself was flawed. The first label definition unintentionally rewarded detecting ongoing incidents rather than predicting upcoming ones. After correcting that, the results became more realistic.
 
-* naive labeling can silently redefine the problem,
-* event-level metrics change conclusions dramatically,
-* and alert threshold selection is an integral part of the modeling process.
-
-The current prototype is functional, reproducible, and extensible. More importantly, it documents the reasoning path that led to its current state.
+The final prototype does not achieve high recall at low alert volume, but it clearly shows where the bottlenecks are. More importantly, it provides a clean experimental framework that makes those limitations visible and measurable.
