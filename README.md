@@ -7,6 +7,7 @@
 ## Table of Contents
 - [Description](#description)
   - [Example Time Series with Incident Intervals](#example-time-series-with-incident-intervals)
+  - [Deployment-Oriented Structure](#deployment-oriented-structure)
 - [Installation](#installation)
 - [Development Workflow](#development-workflow)
 - [Usage](#usage)
@@ -68,6 +69,14 @@ The series also shows occasional spikes that are not followed by incidents, whic
 
 The example comes from the test set and is shown for illustration purposes only. 
 It demonstrates the structural difficulty of extracting predictive signal from single-metric data.
+
+### Deployment-Oriented Structure
+The current training entrypoint is intentionally written as a standalone script: it loads a dataset split, trains a model, selects an alert threshold on the validation set, evaluates on test, and saves a single artifact into `artifacts/` (a pickle containing the model and its config).
+
+Right now, the configuration is defined inline as a Python dictionary for simplicity. 
+In a production setup, the same script could be extended with CLI arguments or environment variables (e.g. `--window-size`, `--horizon`, 
+model hyperparameters, metric selection). With that change, the workflow would map cleanly to a cloud retraining job: the `artifacts/` 
+write step could be replaced with an S3 upload, and an inference job could periodically load the latest artifact and emit alert scores.
 
 ## Installation
 
