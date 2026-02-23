@@ -14,6 +14,8 @@
   - [RandomForest Baseline](#randomforest-baseline)
   - [InceptionTimePlus (Sequence Model)](#inceptiontimeplus-sequence-model)
 - [Design Choices and Thought Process](#design-choices-and-thought-process)
+  - [Data Splits](#data-splits)
+  - [Window and Horizon Parameters](#window-and-horizon-parameters)
   - [1. Initial Formulation and Failure Mode](#1-initial-formulation-and-failure-mode)
   - [2. Corrected Target: Incident Starts Only](#2-corrected-target-incident-starts-only)
   - [3. Sequence Modeling Attempt](#3-sequence-modeling-attempt)
@@ -173,6 +175,28 @@ Saved artifacts are written to `artifacts/`.
 
 
 ## Design Choices and Thought Process
+
+### Data Splits
+
+The dataset contains 17 independent time series. Instead of splitting by time, I split by series. Using a random number generator, I assigned 3 series to validation, 3 to test, and kept the remaining 11 for training.
+This means that validation and test are fully cross-series. The model never sees any window from those series during training. In practice, this makes the task harder, but it also makes the evaluation more honest. The model must generalize to completely unseen metric streams rather than just unseen timestamps from the same stream.
+Within each individual series, timestamps remain naturally ordered and sliding windows respect that order. There is no temporal leakage inside a series. During training, windows are shuffled before being passed to the model (shuffle_train=True in TSClassifier), but this only changes the order of batches. The internal structure of each window remains intact.
+I deliberately avoided splitting by time within the same series. While that setup is common, it would mainly test short-term temporal extrapolation. The cross-series split instead evaluates whether the model learns patterns that transfer across services, which is a stricter and more realistic condition for a predictive alerting system.
+
+### Window and Horizon Parameters
+
+The NAB CloudWatch series are sampled at a **5-minute** interval.
+
+**Horizon `H`** is treated as a business requirement: it defines how far ahead the model must warn before an incident starts. A horizon of `H = 12` steps corresponds to **60 minutes of advance warning**, which was chosen as a reasonable operational target which is enough time for an on-call engineer to investigate and intervene before impact.
+
+**Window size `W`** is a modeling choice, not a business one. It controls how much historical context the model sees. I performed small experiments in a notebook to determine the best `W` size for each model.
+
+| Model | W (steps) | W (time) | H (steps) | H (time) |
+|---|-----------|---------|---|---|
+| RandomForest | 12        | 60 min  | 12 | 60 min |
+| InceptionTimePlus | 144       | 12 h    | 12 | 60 min |
+
+The sequence model benefited from a wider context window, likely because raw temporal patterns require more history to be distinguishable, whereas the tabular model compresses the window into summary statistics where additional history provides diminishing returns.
 
 ### 1. Initial Formulation and Failure Mode
 
